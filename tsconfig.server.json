@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "target": "ES2019",
+    "outDir": "dist",
+    "noEmit": false,
+    "paths": {}
+  },
+  "include": ["server.ts", "src/lib/socket.ts"],
+  "exclude": ["node_modules"]
+}
