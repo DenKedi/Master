@@ -1,345 +1,86 @@
 /* ═══════════════════════════════════════════════════════════════════════════
  *  Battle Engine — Tutorial
  *  Scripted cards, decks, combo recipes, and step definitions for the
- *  guided tutorial.  These cards exist only in the tutorial context — no
- *  DB dependency.
+ *  guided tutorial.
+ *
+ *  Cards are sourced from the card registry (legacy-base set).
+ *  The registry is populated on import of the set module.
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 import type { BattleCard, BattleComboRecipe, GameAction } from './types';
 
-// ─── Tutorial Cards ────────────────────────────────────────────────────────
+// Import set to populate registry
+import '@/lib/cards/sets/legacy-base';
+
+import {
+  BumblingSquire,
+  RustyKnight,
+  SwampWitch,
+  SnottyGoblin,
+  ConfusedOrc,
+} from '@/lib/cards/sets/legacy-base/characters';
+import {
+  ChippedBroadsword,
+  DentedBuckler,
+  GnarlyClub,
+} from '@/lib/cards/sets/legacy-base/arsenal';
+import { CrumblingCourtyard } from '@/lib/cards/sets/legacy-base/destinations';
+import {
+  DubiousPotion,
+  SalvageRune,
+  RudeGesture,
+} from '@/lib/cards/sets/legacy-base/tricks';
+import {
+  ArmedSquire,
+  FortifiedKnight,
+  HexBladeWitch,
+  ShieldedSquire,
+  GreatswordKnight,
+  WardedWitch,
+  ArmedGoblin,
+  RagingOrc,
+} from '@/lib/cards/sets/legacy-base/combos';
+
+// ─── Tutorial Cards (derived from registry classes) ────────────────────
 
 export const TUTORIAL_CARDS = {
   // ── Player characters ──
-  squire: {
-    uid: 'tut-squire',
-    name: 'Bumbling Squire',
-    description: 'Eager but clumsy. Always trips on his own cape.',
-    type: 'character' as const,
-    imageUrl: '/cards/tutorial/squire.webp',
-    attack: 5,
-    defense: 3,
-    effects: [],
-    rarity: 'normal',
-    characterType: 'human',
-  },
-  knight: {
-    uid: 'tut-knight',
-    name: 'Rusty Knight',
-    description: 'His armor squeaks louder than his battle cry.',
-    type: 'character' as const,
-    imageUrl: '/cards/tutorial/knight.webp',
-    attack: 6,
-    defense: 4,
-    effects: [],
-    rarity: 'nice',
-    characterType: 'human',
-  },
-  witch: {
-    uid: 'tut-witch',
-    name: 'Swamp Witch',
-    description: 'Smells weird, but has great aim with hexes.',
-    type: 'character' as const,
-    imageUrl: '/cards/tutorial/witch.webp',
-    attack: 7,
-    defense: 2,
-    effects: [],
-    rarity: 'normal',
-    characterType: 'human',
-  },
+  squire: BumblingSquire.toBattleCard('tut-squire'),
+  knight: RustyKnight.toBattleCard('tut-knight'),
+  witch: SwampWitch.toBattleCard('tut-witch'),
 
   // ── Player arsenal ──
-  sword: {
-    uid: 'tut-sword',
-    name: 'Chipped Broadsword',
-    description: "It's seen better days, and so has its owner.",
-    type: 'arsenal' as const,
-    imageUrl: '/cards/tutorial/sword.webp',
-    attack: 3,
-    defense: 1,
-    effects: [],
-    rarity: 'normal',
-  },
-  shield: {
-    uid: 'tut-shield',
-    name: 'Dented Buckler',
-    description: 'Blocks attacks. Sometimes. Best used facing forward.',
-    type: 'arsenal' as const,
-    imageUrl: '/cards/tutorial/shield.webp',
-    attack: 1,
-    defense: 4,
-    effects: [],
-    rarity: 'normal',
-  },
+  sword: ChippedBroadsword.toBattleCard('tut-sword'),
+  shield: DentedBuckler.toBattleCard('tut-shield'),
 
   // ── Player destination ──
-  courtyard: {
-    uid: 'tut-courtyard',
-    name: 'Crumbling Courtyard',
-    description:
-      'An ancient training ground. The stones whisper encouragement.',
-    type: 'destination' as const,
-    imageUrl: '/cards/tutorial/courtyard.webp',
-    attack: 0,
-    defense: 0,
-    effects: [
-      {
-        id: 'courtyard-boost',
-        trigger: 'passive' as const,
-        description: 'All characters gain +1 Attack while in the Courtyard.',
-        handler: 'boost_attack',
-        params: { amount: 1 },
-      },
-    ],
-    rarity: 'normal',
-  },
+  courtyard: CrumblingCourtyard.toBattleCard('tut-courtyard'),
 
   // ── Player tricks ──
-  healPotion: {
-    uid: 'tut-heal',
-    name: 'Dubious Potion',
-    description: 'Tastes like feet, heals like magic.',
-    type: 'trick' as const,
-    imageUrl: '/cards/tutorial/potion.webp',
-    attack: 0,
-    defense: 0,
-    effects: [
-      {
-        id: 'heal-3',
-        trigger: 'on-play' as const,
-        description: 'Before Combat: Restore 3 HP.',
-        handler: 'heal_owner',
-        params: { amount: 3 },
-        timing: 'before-combat' as const,
-      },
-    ],
-    rarity: 'normal',
-  },
-  arsenalRecovery: {
-    uid: 'tut-recover',
-    name: 'Salvage Rune',
-    description: 'A glowing rune that yanks your weapon back before it breaks.',
-    type: 'trick' as const,
-    imageUrl: '/cards/tutorial/salvage-rune.webp',
-    attack: 0,
-    defense: 0,
-    effects: [
-      {
-        id: 'recover-arsenal',
-        trigger: 'on-play' as const,
-        description: 'After Combat: Return arsenal to hand.',
-        handler: 'recover_arsenal',
-        timing: 'after-combat' as const,
-      },
-    ],
-    rarity: 'nice',
-  },
+  healPotion: DubiousPotion.toBattleCard('tut-heal'),
+  arsenalRecovery: SalvageRune.toBattleCard('tut-recover'),
 
-  // ── Combo result cards (produced by Character + Arsenal) ──
-  armedSquire: {
-    uid: 'tut-combo-armed-squire',
-    name: 'Armed Squire',
-    description: 'Still trips, but now he trips INTO enemies. With a sword.',
-    type: 'character' as const,
-    imageUrl: '/cards/tutorial/armed-squire.webp',
-    attack: 9,
-    defense: 5,
-    effects: [],
-    rarity: 'nice',
-    comboSource: {
-      characterName: 'Bumbling Squire',
-      arsenalName: 'Chipped Broadsword',
-    },
-    characterType: 'human',
-  },
-  fortifiedKnight: {
-    uid: 'tut-combo-fort-knight',
-    name: 'Fortified Knight',
-    description: 'A walking fortress that squeaks with every step.',
-    type: 'character' as const,
-    imageUrl: '/cards/tutorial/fortified-knight.webp',
-    attack: 7,
-    defense: 9,
-    effects: [],
-    rarity: 'nice',
-    comboSource: {
-      characterName: 'Rusty Knight',
-      arsenalName: 'Dented Buckler',
-    },
-    characterType: 'human',
-  },
-  hexBlade: {
-    uid: 'tut-combo-hex-blade',
-    name: 'Hex Blade Witch',
-    description: 'A sword enchanted with swamp magic. Extra slimy.',
-    type: 'character' as const,
-    imageUrl: '/cards/tutorial/hex-blade.webp',
-    attack: 11,
-    defense: 3,
-    effects: [
-      {
-        id: 'hex-combo-bonus',
-        trigger: 'on-combo' as const,
-        description: 'Combo: deal 2 bonus damage.',
-        handler: 'combo_bonus_attack',
-        params: { amount: 2 },
-      },
-    ],
-    rarity: 'special',
-    comboSource: {
-      characterName: 'Swamp Witch',
-      arsenalName: 'Chipped Broadsword',
-    },
-    characterType: 'human',
-  },
-  shieldedSquire: {
-    uid: 'tut-combo-shield-squire',
-    name: 'Shielded Squire',
-    description:
-      'Hides behind a shield bigger than himself. Surprisingly effective.',
-    type: 'character' as const,
-    imageUrl: '/cards/tutorial/shielded-squire.webp',
-    attack: 6,
-    defense: 8,
-    effects: [],
-    rarity: 'nice',
-    comboSource: {
-      characterName: 'Bumbling Squire',
-      arsenalName: 'Dented Buckler',
-    },
-    characterType: 'human',
-  },
-  armedKnight: {
-    uid: 'tut-combo-armed-knight',
-    name: 'Greatsword Knight',
-    description: 'Dual-wielding rust and determination. Loud and lethal.',
-    type: 'character' as const,
-    imageUrl: '/cards/tutorial/armed-knight.webp',
-    attack: 10,
-    defense: 5,
-    effects: [],
-    rarity: 'nice',
-    comboSource: {
-      characterName: 'Rusty Knight',
-      arsenalName: 'Chipped Broadsword',
-    },
-    characterType: 'human',
-  },
-  hexShieldWitch: {
-    uid: 'tut-combo-hex-shield',
-    name: 'Warded Witch',
-    description:
-      'A magical barrier of swamp gas. Smells terrible, deflects everything.',
-    type: 'character' as const,
-    imageUrl: '/cards/tutorial/warded-witch.webp',
-    attack: 8,
-    defense: 6,
-    effects: [
-      {
-        id: 'ward-combo-heal',
-        trigger: 'on-combo' as const,
-        description: 'Combo: restore 2 HP.',
-        handler: 'heal_owner',
-        params: { amount: 2 },
-      },
-    ],
-    rarity: 'special',
-    comboSource: {
-      characterName: 'Swamp Witch',
-      arsenalName: 'Dented Buckler',
-    },
-    characterType: 'human',
-  },
+  // ── Combo result cards ──
+  armedSquire: ArmedSquire.toBattleCard('tut-combo-armed-squire'),
+  fortifiedKnight: FortifiedKnight.toBattleCard('tut-combo-fort-knight'),
+  hexBlade: HexBladeWitch.toBattleCard('tut-combo-hex-blade'),
+  shieldedSquire: ShieldedSquire.toBattleCard('tut-combo-shield-squire'),
+  armedKnight: GreatswordKnight.toBattleCard('tut-combo-armed-knight'),
+  hexShieldWitch: WardedWitch.toBattleCard('tut-combo-hex-shield'),
 
   // ── Opponent characters ──
-  goblin: {
-    uid: 'tut-goblin',
-    name: 'Snotty Goblin',
-    description: 'Picks fights and noses with equal enthusiasm.',
-    type: 'character' as const,
-    imageUrl: '/cards/tutorial/goblin.webp',
-    attack: 3,
-    defense: 2,
-    effects: [],
-    rarity: 'normal',
-    characterType: 'goblin',
-  },
-  orc: {
-    uid: 'tut-orc',
-    name: 'Confused Orc',
-    description: "Not sure why he's here. Hits hard anyway.",
-    type: 'character' as const,
-    imageUrl: '/cards/tutorial/orc.webp',
-    attack: 4,
-    defense: 3,
-    effects: [],
-    rarity: 'normal',
-    characterType: 'beast',
-  },
+  goblin: SnottyGoblin.toBattleCard('tut-goblin'),
+  orc: ConfusedOrc.toBattleCard('tut-orc'),
 
   // ── Opponent arsenal ──
-  club: {
-    uid: 'tut-club',
-    name: 'Gnarly Club',
-    description: 'A stick. A big, angry stick.',
-    type: 'arsenal' as const,
-    imageUrl: '/cards/tutorial/club.webp',
-    attack: 2,
-    defense: 1,
-    effects: [],
-    rarity: 'normal',
-  },
+  club: GnarlyClub.toBattleCard('tut-club'),
 
   // ── Opponent trick ──
-  taunt: {
-    uid: 'tut-taunt',
-    name: 'Rude Gesture',
-    description:
-      'The opponent makes a very rude gesture. It hurts your feelings and your HP.',
-    type: 'trick' as const,
-    imageUrl: '/cards/tutorial/taunt.webp',
-    attack: 0,
-    defense: 0,
-    effects: [
-      {
-        id: 'taunt-dmg',
-        trigger: 'on-play' as const,
-        description: 'Before Combat: Deal 2 direct damage.',
-        handler: 'damage_opponent',
-        params: { amount: 2 },
-        timing: 'before-combat' as const,
-      },
-    ],
-    rarity: 'normal',
-  },
+  taunt: RudeGesture.toBattleCard('tut-taunt'),
 
-  // ── Opponent combo result ──
-  armedGoblin: {
-    uid: 'tut-combo-armed-goblin',
-    name: 'Armed Goblin',
-    description: 'Still disgusting, but now armed and dangerous.',
-    type: 'character' as const,
-    imageUrl: '/cards/tutorial/armed-goblin.webp',
-    attack: 6,
-    defense: 3,
-    effects: [],
-    rarity: 'nice',
-    comboSource: { characterName: 'Snotty Goblin', arsenalName: 'Gnarly Club' },
-    characterType: 'goblin',
-  },
-  ragingOrc: {
-    uid: 'tut-combo-raging-orc',
-    name: 'Raging Orc',
-    description: 'Finally figured out why he is here. Now everyone pays.',
-    type: 'character' as const,
-    imageUrl: '/cards/tutorial/raging-orc.webp',
-    attack: 7,
-    defense: 4,
-    effects: [],
-    rarity: 'nice',
-    comboSource: { characterName: 'Confused Orc', arsenalName: 'Gnarly Club' },
-    characterType: 'beast',
-  },
+  // ── Opponent combo results ──
+  armedGoblin: ArmedGoblin.toBattleCard('tut-combo-armed-goblin'),
+  ragingOrc: RagingOrc.toBattleCard('tut-combo-raging-orc'),
 } satisfies Record<string, BattleCard>;
 
 // ─── Tutorial Combo Recipes ────────────────────────────────────────────────

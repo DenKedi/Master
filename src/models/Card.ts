@@ -1,5 +1,6 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 import { CardRarity, CardType, CardTier, CharacterType } from '@/types';
+import type { CardEffect } from '@/lib/battle/types';
 
 export interface CardDocument extends Document {
   name: string;
@@ -11,6 +12,7 @@ export interface CardDocument extends Document {
   attack: number;
   defense: number;
   effect?: string;
+  effects: CardEffect[];
   cost: number;
   tags: string[];
   characterType?: CharacterType;
@@ -41,7 +43,29 @@ const CardSchema = new Schema<CardDocument>(
     imageUrl: { type: String, required: true },
     attack: { type: Number, required: true, min: 0, default: 0 },
     defense: { type: Number, required: true, min: 0, default: 0 },
-    effect: { type: String }, // only advanced cards may have effects
+    effect: { type: String }, // legacy plain-text description
+    effects: [
+      {
+        id: { type: String, required: true },
+        trigger: {
+          type: String,
+          enum: [
+            'on-play',
+            'on-combo',
+            'on-attack',
+            'on-defend',
+            'on-death',
+            'passive',
+            'on-discard',
+          ],
+          required: true,
+        },
+        description: { type: String, required: true },
+        handler: { type: String, required: true },
+        params: { type: Schema.Types.Mixed },
+        timing: { type: String, enum: ['before-combat', 'after-combat'] },
+      },
+    ],
     cost: { type: Number, required: true, min: 0 },
     tags: [{ type: String }],
     characterType: {
