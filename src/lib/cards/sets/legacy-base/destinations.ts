@@ -27,4 +27,25 @@ export const CrumblingCourtyard = new DestinationCard({
   set: SET,
 });
 
-export const allDestinations = [CrumblingCourtyard];
+export const GoblinWarren = new DestinationCard({
+  name: 'Goblin Warren',
+  description: 'A cramped but loyal hideout. Goblins fight fiercer here.',
+  rarity: 'normal',
+  tier: 'base',
+  imageUrl: '/cards/tutorial/goblin-warren.webp',
+  attack: 0,
+  defense: 0,
+  cost: 1,
+  effects: [
+    {
+      id: 'warren-goblin-boost',
+      trigger: 'passive',
+      description: 'Goblin characters gain +2 Attack in the Warren.',
+      handler: 'boost_attack',
+      params: { amount: 2, characterType: 'goblin' },
+    },
+  ],
+  set: SET,
+});
+
+export const allDestinations = [CrumblingCourtyard, GoblinWarren];

@@ -122,13 +122,19 @@ registerEffect('damage_opponent', (state, _card, effect, ownerId) => {
   return { state: newState, events };
 });
 
-/** boost_attack — Boost attack of the active card */
+/** boost_attack — Boost attack of the active card (optionally filter by characterType) */
 registerEffect('boost_attack', (state, _card, effect, ownerId) => {
   const amount = (effect.params?.amount as number) ?? 0;
+  const characterTypeFilter = effect.params?.characterType as string | undefined;
   const isPlayer = state.player.id === ownerId;
   const playerState: PlayerState = isPlayer ? state.player : state.opponent;
 
   if (!playerState.active) return { state, events: [] };
+
+  // If a characterType filter is set, only boost matching character types
+  if (characterTypeFilter && playerState.active.characterType !== characterTypeFilter) {
+    return { state, events: [] };
+  }
 
   const boosted = {
     ...playerState.active,

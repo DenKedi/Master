@@ -153,7 +153,7 @@ export interface GameState {
   /** History of all actions taken */
   log: GameLogEntry[];
   /** Is the game over? */
-  winner: string | null; // player id or null if ongoing
+  winner: string | 'tie' | null; // player id, 'tie', or null if ongoing
   /** Combo recipes available in this battle */
   comboRecipes: BattleComboRecipe[];
   /** Turn counter for first turn */
@@ -223,7 +223,7 @@ export type GameEvent =
   | { type: 'HP_CHANGED'; playerId: string; newHp: number; delta: number }
   | { type: 'PHASE_CHANGED'; phase: TurnPhase }
   | { type: 'TURN_STARTED'; turn: number }
-  | { type: 'GAME_OVER'; winnerId: string }
+  | { type: 'GAME_OVER'; winnerId: string | 'tie' }
   | {
       type: 'EFFECT_TRIGGERED';
       card: BattleCard;

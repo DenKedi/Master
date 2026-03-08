@@ -80,6 +80,7 @@ export default function BattleBoard({
   const playerConfirmed = state.player.selection.confirmed;
   const opponentConfirmed = state.opponent.selection.confirmed;
   const canAct = isSelectPhase && !disabled && !state.winner && !playerConfirmed;
+  const canActAfterDraw = canAct && state.player.hasDrawnThisTurn;
 
   // Get available combos for the player
   const availableCombos = isSelectPhase
@@ -133,7 +134,7 @@ export default function BattleBoard({
   // ─── Drag & Drop ───────────────────────────────────────────────────────
   const handleDrop = useCallback(
     (card: BattleCard, zone: DropZoneId) => {
-      if (!canAct) return;
+      if (!canActAfterDraw) return;
       if (zone === "player-active") {
         if (card.type === "character") {
           if (state.player.selection.characterUid !== card.uid) {
@@ -148,14 +149,14 @@ export default function BattleBoard({
         }
       }
     },
-    [canAct, state.player.selection.characterUid, availableCombos, onAction],
+    [canActAfterDraw, state.player.selection.characterUid, availableCombos, onAction],
   );
 
   const drag = useBattleDrag({ onDrop: handleDrop });
 
   // Can the card be dragged?
   const canDragCard = (card: BattleCard): boolean => {
-    if (!canAct) return false;
+    if (!canActAfterDraw) return false;
     switch (card.type) {
       case "character":
         return state.player.selection.characterUid !== card.uid;
@@ -172,20 +173,23 @@ export default function BattleBoard({
 
   // ─── Action label for inspect panel ─────────────────────────────────────
   const getActionForCard = (card: BattleCard): { label: string; action: GameAction } | null => {
-    if (!canAct) return null;
+    if (!canActAfterDraw) return null;
     switch (card.type) {
       case "character":
         if (state.player.selection.characterUid === card.uid) return null;
-        return { label: "Select as Fighter", action: { type: "SELECT_CHARACTER", cardUid: card.uid } };
-      case "arsenal":
+        return { label: "Select Fighter", action: { type: "SELECT_CHARACTER", cardUid: card.uid } };
+      case "arsenal": {
+        const hasActiveCharacter = !!(state.player.selection.characterUid || state.player.active);
         if (state.player.selection.comboArsenalUid === card.uid) {
           const hasRecipe = availableCombos.some(c => c.arsenalUid === card.uid);
           return { label: hasRecipe ? "Remove Combo" : "Unequip Arsenal", action: { type: "DESELECT_COMBO" } };
         }
+        if (!hasActiveCharacter) return null;
         if (availableCombos.some(c => c.arsenalUid === card.uid)) {
           return { label: "Use for Combo", action: { type: "SELECT_COMBO", arsenalUid: card.uid } };
         }
         return { label: "Equip Arsenal", action: { type: "SELECT_COMBO", arsenalUid: card.uid } };
+      }
       case "destination":
         if (state.player.selection.destinationUid === card.uid) {
           return { label: "Unstage Destination", action: { type: "REMOVE_DESTINATION", cardUid: card.uid } };
@@ -212,7 +216,7 @@ export default function BattleBoard({
     clearTimeout(hoverTimerRef.current);
 
     // Compute action for hand cards
-    if (isHandCard && canAct) {
+    if (isHandCard && canActAfterDraw) {
       const actionInfo = getActionForCard(card);
       if (actionInfo) {
         setInspectAction({
@@ -474,20 +478,11 @@ export default function BattleBoard({
               title={!state.player.hasDrawnThisTurn ? "Draw a card first" : undefined}
               className="btn-game btn-game-crimson px-4 py-2 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              ✦ Confirm & Fight
+              ✦ Confirm
             </button>
           )}
 
-          {/* Undo Selection button */}
-          {canAct && (state.player.selection.characterUid || state.player.selection.comboArsenalUid || state.player.selection.trickUids.length > 0 || state.player.selection.destinationUid) && (
-            <button
-              data-action="undo"
-              onClick={() => onAction({ type: "UNDO_SELECTION" })}
-              className="btn-game btn-game-arcane px-4 py-2 text-xs"
-            >
-              ↩ Reset
-            </button>
-          )}
+
         </div>
 
         {/* Status messages */}
@@ -625,7 +620,7 @@ export default function BattleBoard({
                   {deckHighlighted && (
                     <div className="absolute inset-0 rounded ring-2 ring-yellow-400 pointer-events-none" style={{ boxShadow: '0 0 16px rgba(200,150,42,0.5)' }} />
                   )}
-                  <span className="absolute inset-0 flex items-center justify-center text-sm font-bold drop-shadow-lg" style={{ color: 'var(--gold)', textShadow: '0 0 6px rgba(0,0,0,0.9)' }}>
+                  <span className="absolute top-1 right-1 z-10 min-w-[1.35rem] h-[1.35rem] flex items-center justify-center rounded-full text-[11px] font-bold px-1" style={{ background: 'rgba(10,0,25,0.92)', border: '1.5px solid rgba(200,150,42,0.7)', color: 'var(--gold)', boxShadow: '0 0 8px rgba(200,150,42,0.45)' }}>
                     {state.player.deck.length}
                   </span>
                 </div>

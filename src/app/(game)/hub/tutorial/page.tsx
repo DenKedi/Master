@@ -20,6 +20,7 @@ import BattleBoard from "@/components/battle/BattleBoard";
 import type { CombatEventData } from "@/components/battle/BattleBoard";
 import TutorialOverlay from "@/components/battle/TutorialOverlay";
 import GameOverScreen from "@/components/battle/GameOverScreen";
+import TransformAnimation, { type TransformSlide } from "@/components/battle/TransformAnimation";
 
 export default function TutorialPage() {
   const router = useRouter();
@@ -39,6 +40,8 @@ export default function TutorialPage() {
   const [xpGranted, setXpGranted] = useState(false);
   const [combatEvent, setCombatEvent] = useState<CombatEventData | null>(null);
   const pendingHpDeltas = useRef<{ player?: number; opponent?: number }>({});
+  const [transformSlides, setTransformSlides] = useState<TransformSlide[] | null>(null);
+  const pendingCombatEvent = useRef<CombatEventData | null>(null);
 
   // AI processing ref to prevent double-runs
   const aiRunning = useRef(false);
@@ -95,8 +98,54 @@ export default function TutorialPage() {
 
   // ── Process events for UI effects ──
   const processEvents = useCallback((evts: GameEvent[]) => {
-    // Check for combat event first — if found, defer HP deltas
-    const combatEvt = evts.find(e => e.type === "SIMULTANEOUS_COMBAT");
+    // Check for combo resolved events first
+    const comboEvts = evts.filter(e => e.type === 'COMBO_RESOLVED');
+    const combatEvt = evts.find(e => e.type === 'SIMULTANEOUS_COMBAT');
+
+    if (comboEvts.length > 0) {
+      // Build slides — player first, then opponent
+      const slides: TransformSlide[] = comboEvts
+        .filter((e): e is Extract<GameEvent, { type: 'COMBO_RESOLVED' }> => e.type === 'COMBO_RESOLVED')
+        .sort((a, b) => (a.playerId === 'player' ? -1 : 1))
+        .map(e => ({
+          character: e.character,
+          arsenal: e.arsenal,
+          result: e.result,
+          name: e.playerId === 'player' ? 'You' : 'Opponent',
+          isPlayer: e.playerId === 'player',
+        }));
+      setTransformSlides(slides);
+
+      // Stash combat event to show after transform
+      if (combatEvt && combatEvt.type === 'SIMULTANEOUS_COMBAT') {
+        pendingCombatEvent.current = {
+          playerCard: combatEvt.playerCard,
+          opponentCard: combatEvt.opponentCard,
+          playerAttack: combatEvt.playerAttack,
+          playerDefense: combatEvt.playerDefense,
+          opponentAttack: combatEvt.opponentAttack,
+          opponentDefense: combatEvt.opponentDefense,
+          damageToPlayer: combatEvt.damageToPlayer,
+          damageToOpponent: combatEvt.damageToOpponent,
+          playerHpBefore: combatEvt.playerHpBefore,
+          playerHpAfter: combatEvt.playerHpAfter,
+          playerMaxHp: combatEvt.playerMaxHp,
+          opponentHpBefore: combatEvt.opponentHpBefore,
+          opponentHpAfter: combatEvt.opponentHpAfter,
+          opponentMaxHp: combatEvt.opponentMaxHp,
+        };
+      }
+      // Stash HP deltas too
+      for (const evt of evts) {
+        if (evt.type === 'HP_CHANGED') {
+          if (evt.playerId === 'player') pendingHpDeltas.current.player = evt.delta;
+          if (evt.playerId === 'opponent') pendingHpDeltas.current.opponent = evt.delta;
+        }
+      }
+      return;
+    }
+
+    // No combo — check for combat event
     if (combatEvt && combatEvt.type === "SIMULTANEOUS_COMBAT") {
       setCombatEvent({
         playerCard: combatEvt.playerCard,
@@ -224,6 +273,20 @@ export default function TutorialPage() {
     setGameState(currentState);
     if (currentState.winner) setGameOver(true);
   }, [gameState, processEvents]);
+
+  // ── Transform animation done ──
+  const handleTransformDone = useCallback(() => {
+    setTransformSlides(null);
+    if (pendingCombatEvent.current) {
+      setCombatEvent(pendingCombatEvent.current);
+      pendingCombatEvent.current = null;
+    } else {
+      // No combat follows — still apply HP deltas
+      if (pendingHpDeltas.current.player !== undefined) setPlayerHpDelta(pendingHpDeltas.current.player);
+      if (pendingHpDeltas.current.opponent !== undefined) setOpponentHpDelta(pendingHpDeltas.current.opponent);
+      pendingHpDeltas.current = {};
+    }
+  }, []);
 
   // ── Combat animation done handler ──
   const handleCombatAnimationDone = useCallback(() => {
@@ -411,7 +474,7 @@ export default function TutorialPage() {
       />
 
       {/* Tutorial overlay — hidden while combat animation is active */}
-      {showOverlay && currentStep && !gameOver && !combatEvent && (
+      {showOverlay && currentStep && !gameOver && !combatEvent && !transformSlides && (
         <TutorialOverlay
           title={currentStep.title}
           description={currentStep.description}
@@ -424,10 +487,19 @@ export default function TutorialPage() {
         />
       )}
 
+      {/* Transform animation — runs before combat */}
+      {transformSlides && (
+        <TransformAnimation
+          slides={transformSlides}
+          onDone={handleTransformDone}
+        />
+      )}
+
       {/* Game over screen — hidden while combat animation is active */}
-      {gameOver && !combatEvent && (
+      {gameOver && !combatEvent && !transformSlides && (
         <GameOverScreen
           won={gameState.winner === "player"}
+          tie={gameState.winner === "tie"}
           xpReward={gameState.winner === "player" ? TUTORIAL_XP_REWARD : 0}
           isTutorial
           onContinue={() => {

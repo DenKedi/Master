@@ -91,12 +91,12 @@ export default function CombatAnimation({
       timers.push(setTimeout(fn, ms));
     };
 
-    after(600,  () => setPhase("p-strike"));
-    after(1100, () => { setPhase("p-result"); setOHp(opponentHpAfter); });
-    after(2200, () => setPhase("gap"));
-    after(2600, () => setPhase("o-strike"));
-    after(3100, () => { setPhase("o-result"); setPHp(playerHpAfter); });
-    after(4100, () => { setPhase("wait"); setCanDismiss(true); });
+    after(1800, () => setPhase("p-strike"));
+    after(2500, () => { setPhase("p-result"); setOHp(opponentHpAfter); });
+    after(3800, () => setPhase("gap"));
+    after(4400, () => setPhase("o-strike"));
+    after(5100, () => { setPhase("o-result"); setPHp(playerHpAfter); });
+    after(6400, () => { setPhase("wait"); setCanDismiss(true); });
 
     return () => timers.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps

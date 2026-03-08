@@ -260,7 +260,7 @@ export default function Sidebar() {
                 href="/hub/master"
                 onMouseEnter={() => setHovered("/hub/master")}
                 onMouseLeave={() => setHovered(null)}
-                className="relative flex items-center gap-3 py-4 pr-5 pl-8 flex-shrink-0 transition-colors"
+                className="relative flex items-center gap-3 py-4 pr-5 pl-24 flex-shrink-0 transition-colors"
                 style={{
                   color: masterActive
                     ? "var(--arcane)"
@@ -295,7 +295,7 @@ export default function Sidebar() {
             );
           })() : (
             <div
-              className="relative flex items-center gap-3 py-4 pr-5 pl-20 flex-shrink-0 cursor-not-allowed group"
+              className="relative flex items-center gap-3 py-4 pr-5 pl-24 flex-shrink-0 cursor-not-allowed group"
               style={{ color: "rgba(180,130,255,0.25)" }}
             >
               <span className="text-base leading-none">{"\uD83D\uDD12"}</span>

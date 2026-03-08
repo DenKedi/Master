@@ -38,6 +38,8 @@ export function isValidAction(
 
   switch (action.type) {
     case 'SELECT_CHARACTER': {
+      if (!actor.hasDrawnThisTurn)
+        return { valid: false, reason: 'Draw a card before taking actions.' };
       const card = actor.hand.find(c => c.uid === action.cardUid);
       if (!card) return { valid: false, reason: 'Card not in hand.' };
       if (card.type !== 'character')
@@ -49,6 +51,8 @@ export function isValidAction(
     }
 
     case 'SELECT_COMBO': {
+      if (!actor.hasDrawnThisTurn)
+        return { valid: false, reason: 'Draw a card before taking actions.' };
       const arsenal = actor.hand.find(c => c.uid === action.arsenalUid);
       if (!arsenal) return { valid: false, reason: 'Arsenal not in hand.' };
       if (arsenal.type !== 'arsenal')
@@ -71,12 +75,16 @@ export function isValidAction(
     }
 
     case 'DESELECT_COMBO': {
+      if (!actor.hasDrawnThisTurn)
+        return { valid: false, reason: 'Draw a card before taking actions.' };
       if (!actor.selection.comboArsenalUid)
         return { valid: false, reason: 'No combo selected to deselect.' };
       return { valid: true };
     }
 
     case 'PLAY_TRICK': {
+      if (!actor.hasDrawnThisTurn)
+        return { valid: false, reason: 'Draw a card before taking actions.' };
       const card = actor.hand.find(c => c.uid === action.cardUid);
       if (!card) return { valid: false, reason: 'Card not in hand.' };
       if (card.type !== 'trick')
@@ -93,6 +101,8 @@ export function isValidAction(
     }
 
     case 'PLAY_DESTINATION': {
+      if (!actor.hasDrawnThisTurn)
+        return { valid: false, reason: 'Draw a card before taking actions.' };
       const card = actor.hand.find(c => c.uid === action.cardUid);
       if (!card) return { valid: false, reason: 'Card not in hand.' };
       if (card.type !== 'destination')

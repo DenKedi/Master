@@ -113,12 +113,30 @@ export default function CardInHand({
         )}
       </div>
 
-      {/* Card name */}
-      <div
-        className="text-[9px] sm:text-[10px] font-bold leading-tight mb-auto truncate"
-        style={{ color: "var(--text-primary)" }}
-      >
-        {card.name}
+      {/* Card name + tier tag */}
+      <div className="flex items-start gap-1 mb-auto min-w-0">
+        <div
+          className="text-[9px] sm:text-[10px] font-bold leading-tight truncate min-w-0"
+          style={{ color: "var(--text-primary)" }}
+        >
+          {card.name}
+        </div>
+        {(card.type === "character" || card.type === "arsenal") && (
+          <span
+            className="flex-shrink-0 text-[7px] font-black uppercase tracking-wide px-0.5 rounded leading-tight mt-px"
+            style={card.comboSource ? {
+              background: "rgba(168,85,247,0.2)",
+              border: "1px solid rgba(168,85,247,0.6)",
+              color: "#d8b4fe",
+            } : {
+              background: "rgba(200,150,42,0.15)",
+              border: "1px solid rgba(200,150,42,0.5)",
+              color: "var(--gold)",
+            }}
+          >
+            {card.comboSource ? "S" : "C"}
+          </span>
+        )}
       </div>
 
       {/* Stats */}
@@ -156,23 +174,7 @@ export default function CardInHand({
         }}
       />
 
-      {/* C/S tier tag */}
-      {(card.type === "character" || card.type === "arsenal") && (
-        <div
-          className="absolute bottom-0.5 right-0.5 w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-black leading-none"
-          style={{
-            background: card.comboSource
-              ? "linear-gradient(135deg, #a855f7, #7c3aed)"
-              : "linear-gradient(135deg, #c8962a, #a17720)",
-            color: "#fff",
-            boxShadow: card.comboSource
-              ? "0 0 6px rgba(168,85,247,0.6)"
-              : "0 0 6px rgba(200,150,42,0.6)",
-          }}
-        >
-          {card.comboSource ? "S" : "C"}
-        </div>
-      )}
+
     </button>
   );
 }

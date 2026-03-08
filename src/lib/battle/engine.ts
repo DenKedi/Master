@@ -886,11 +886,9 @@ function resolveSimultaneousCombat(
   const oDead = s.opponent.hp <= 0;
 
   if (pDead && oDead) {
-    // Both KO'd — whoever dealt more damage wins; tie goes to player
-    const winnerId =
-      damageToOpponent >= damageToPlayer ? s.player.id : s.opponent.id;
-    s = { ...s, winner: winnerId };
-    events.push({ type: 'GAME_OVER', winnerId });
+    // Both KO'd simultaneously — it's a tie
+    s = { ...s, winner: 'tie' };
+    events.push({ type: 'GAME_OVER', winnerId: 'tie' });
   } else if (pDead) {
     s = { ...s, winner: s.opponent.id };
     events.push({ type: 'GAME_OVER', winnerId: s.opponent.id });
