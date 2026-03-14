@@ -47,7 +47,7 @@ export default function RegisterPage() {
       <div className="relative z-10 w-full max-w-md animate-slide-up">
         <div className="text-center mb-8">
           <div className="text-xs tracking-[0.4em] uppercase mb-3" style={{ color: 'var(--gold)' }}>✦ Create Account ✦</div>
-          <h1 className="text-4xl font-black tracking-widest text-gold-gradient font-display">MASTER</h1>
+          <h1 className="text-4xl font-black tracking-widest text-gold-gradient font-display">MASTER OF MASTERS</h1>
         </div>
 
         <div className="panel panel-ornate p-8 relative">

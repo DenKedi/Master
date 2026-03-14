@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import LoadingDots from "@/components/ui/LoadingDots";
+import { usePrefetch } from "@/hooks/usePrefetch";
 
 interface FriendUser {
   _id: string;
@@ -17,12 +18,23 @@ interface FriendRequest {
 }
 
 export default function FriendsPage() {
+  const prefetch = usePrefetch();
   const [friends, setFriends] = useState<FriendUser[]>([]);
   const [pending, setPending] = useState<FriendRequest[]>([]);
   const [sent, setSent] = useState<FriendRequest[]>([]);
   const [searchUsername, setSearchUsername] = useState("");
   const [searchResult, setSearchResult] = useState<string>("");
   const [loading, setLoading] = useState(true);
+
+  // Seed from prefetch
+  useEffect(() => {
+    if (prefetch.friends.data) {
+      setFriends(prefetch.friends.data.friends ?? []);
+      setPending(prefetch.friends.data.pending ?? []);
+      setSent(prefetch.friends.data.sent ?? []);
+      setLoading(false);
+    }
+  }, [prefetch.friends.data]);
 
   function fetchData() {
     fetch("/api/friends")
@@ -35,7 +47,7 @@ export default function FriendsPage() {
       });
   }
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { if (!prefetch.friends.data) fetchData(); }, []);
 
   async function sendRequest() {
     setSearchResult("");
@@ -75,8 +87,8 @@ export default function FriendsPage() {
   return (
     <div className="max-w-2xl animate-slide-up">
       <div className="mb-8">
-        <div className="text-xs tracking-[0.3em] uppercase mb-2" style={{ color: 'var(--gold)' }}>✦ Inquisition ✦</div>
-        <h1 className="font-display font-black text-3xl tracking-widest uppercase text-gold-gradient">Hunt Roster</h1>
+        <div className="text-xs tracking-[0.3em] uppercase mb-2" style={{ color: 'var(--gold)' }}>✦ Master of ✦</div>
+        <h1 className="font-display font-black text-3xl tracking-widest uppercase text-gold-gradient">Friends</h1>
         <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Having allies is a powerful advantage, mostly because you can blame them for your failures.</p>
       </div>
 

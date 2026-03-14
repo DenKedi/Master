@@ -5,7 +5,7 @@ import CollectionModel from '@/models/Collection';
 import { apiOk, apiError } from '@/lib/utils';
 import { auth } from '@/lib/nextauth';
 
-// POST /api/cards/combine — Combine two base cards the player owns into an advanced card
+// POST /api/cards/combine — Combine two cards the player owns via a recipe
 export async function POST(req: NextRequest) {
   const [session] = await Promise.all([auth(), connectDB()]);
   if (!session) return apiError('Unauthorized', 401);
@@ -75,9 +75,9 @@ export async function GET() {
   if (!session) return apiError('Unauthorized', 401);
 
   const recipes = await CardRecipeModel.find()
-    .populate('ingredientA', 'name imageUrl type tier rarity')
-    .populate('ingredientB', 'name imageUrl type tier rarity')
-    .populate('result', 'name imageUrl type tier rarity attack defense effect')
+    .populate('ingredientA', 'name imageUrl type rarity')
+    .populate('ingredientB', 'name imageUrl type rarity')
+    .populate('result', 'name imageUrl type rarity attack defense effect')
     .lean();
 
   return apiOk(recipes);

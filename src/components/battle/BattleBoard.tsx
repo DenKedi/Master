@@ -149,7 +149,7 @@ export default function BattleBoard({
         }
       }
     },
-    [canActAfterDraw, state.player.selection.characterUid, availableCombos, onAction],
+    [canActAfterDraw, state.player.selection.characterUid, onAction],
   );
 
   const drag = useBattleDrag({ onDrop: handleDrop });
@@ -336,12 +336,24 @@ export default function BattleBoard({
   const isHoverDest = drag.state.overZone === "field-destination";
 
   return (
-    <div className="flex flex-col h-full min-h-0 gap-2">
-      {/* === Top: Opponent Side === */}
-      <div className="flex-shrink-0">
-        {/* Opponent info bar */}
-        <div className="flex items-center justify-end gap-2 mb-1">
-          <div className="flex flex-col items-end">
+    <div className="relative h-full min-h-0 overflow-hidden flex flex-col"
+      style={{
+        background: "linear-gradient(180deg, rgba(155,26,42,0.04), rgba(255,255,255,0.01), rgba(200,150,42,0.04))",
+      }}
+    >
+      {/* ═══ TOP BAR: Phase center — Opponent top-right ═══ */}
+      <div className="flex-shrink-0 flex items-start justify-between px-3 pt-2 pb-1">
+        {/* Phase indicator — left/center */}
+        <div className="flex-1" />
+        <PhaseIndicator
+          currentPhase={state.phase}
+          turn={state.turn}
+          playerConfirmed={playerConfirmed}
+          opponentConfirmed={opponentConfirmed}
+        />
+        {/* Opponent identity + HP — top-right */}
+        <div className="flex-1 flex items-start justify-end gap-2">
+          <div className="flex flex-col items-end leading-none mt-1">
             <span className="text-xs font-display font-bold tracking-wider uppercase" style={{ color: 'var(--text-primary)' }}>
               {opponentInfo?.name ?? state.opponent.name}
             </span>
@@ -351,195 +363,157 @@ export default function BattleBoard({
               </span>
             )}
           </div>
-          <div
-            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden"
-            style={{ background: 'rgba(155,26,42,0.3)', border: '2px solid rgba(155,26,42,0.5)' }}
-          >
-            {opponentInfo?.avatarUrl ? (
-              <img src={opponentInfo.avatarUrl} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-sm">👹</span>
-            )}
-          </div>
-        </div>
-
-        {/* Opponent HP */}
-        <HPBar
-          current={state.opponent.hp}
-          max={state.opponent.maxHp}
-          label={opponentInfo?.name ?? state.opponent.name}
-          align="right"
-          recentDelta={opponentHpDelta}
-        />
-
-        {/* Opponent hand (face-down) */}
-        <div className="flex items-center gap-1 mt-2 justify-center overflow-x-auto">
-          {state.opponent.hand.map((c) => (
-            <CardInHand key={c.uid} card={c} faceDown />
-          ))}
-          <div className="relative ml-2 flex-shrink-0" title={`Deck: ${state.opponent.deck.length}`}>
-            <div className="relative w-20 h-28 sm:w-24 sm:h-32">
-              {state.opponent.deck.length > 4 && (
-                <img src="/card-back.webp" alt="" className="absolute top-0 left-0 w-full h-full rounded object-cover" style={{ transform: 'translate(4px, 4px)', filter: 'brightness(0.4)' }} />
-              )}
-              {state.opponent.deck.length > 3 && (
-                <img src="/card-back.webp" alt="" className="absolute top-0 left-0 w-full h-full rounded object-cover" style={{ transform: 'translate(3px, 3px)', filter: 'brightness(0.5)' }} />
-              )}
-              {state.opponent.deck.length > 2 && (
-                <img src="/card-back.webp" alt="" className="absolute top-0 left-0 w-full h-full rounded object-cover" style={{ transform: 'translate(2px, 2px)', filter: 'brightness(0.6)' }} />
-              )}
-              {state.opponent.deck.length > 1 && (
-                <img src="/card-back.webp" alt="" className="absolute top-0 left-0 w-full h-full rounded object-cover" style={{ transform: 'translate(1px, 1px)', filter: 'brightness(0.8)' }} />
-              )}
-              {state.opponent.deck.length > 0 && (
-                <img src="/card-back.webp" alt="Deck" className="absolute top-0 left-0 w-full h-full rounded object-cover shadow-lg" />
-              )}
-              <span className="absolute inset-0 flex items-center justify-center text-sm font-bold drop-shadow-lg" style={{ color: 'var(--gold)', textShadow: '0 0 6px rgba(0,0,0,0.9)' }}>
-                {state.opponent.deck.length}
-              </span>
+          <div className="relative flex-shrink-0">
+            <HPBar
+              current={state.opponent.hp}
+              max={state.opponent.maxHp}
+              label={opponentInfo?.name ?? state.opponent.name}
+              align="right"
+              recentDelta={opponentHpDelta}
+            />
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden"
+                style={{ background: 'rgba(155,26,42,0.4)', border: '2px solid rgba(155,26,42,0.6)' }}
+              >
+                {opponentInfo?.avatarUrl ? (
+                  <img src={opponentInfo.avatarUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-base">👹</span>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* === Middle: Battlefield === */}
-      <div
-        className="flex-1 flex flex-col items-center justify-center gap-3 py-2 rounded-lg relative"
-        style={{
-          background: "linear-gradient(180deg, rgba(155,26,42,0.04), rgba(255,255,255,0.01), rgba(200,150,42,0.04))",
-          border: "1px solid rgba(255,255,255,0.04)",
-        }}
-      >
-        {/* Phase indicator — centered */}
-        <div className="absolute top-2 left-1/2 -translate-x-1/2">
-          <PhaseIndicator
-            currentPhase={state.phase}
-            turn={state.turn}
-            playerConfirmed={playerConfirmed}
-            opponentConfirmed={opponentConfirmed}
+      {/* ═══ ARENA: Opponent Active → Destination → Player Active ═══ */}
+      <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-1 relative px-3">
+        {/* Opponent hand + deck (compact row above opponent active) */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {state.opponent.hand.map((c) => (
+            <div key={c.uid} className="w-7 h-10 rounded flex-shrink-0"
+              style={{ background: "linear-gradient(135deg, #1a0030, #0a0018)", border: "1px solid rgba(200,150,42,0.15)" }}
+            >
+              <div className="w-full h-full flex items-center justify-center text-[8px] opacity-20">🂠</div>
+            </div>
+          ))}
+          <div className="relative w-7 h-10 flex-shrink-0 ml-1"
+            title={`Deck: ${state.opponent.deck.length}`}
+          >
+            {state.opponent.deck.length > 0 && (
+              <img src="/card-back.webp" alt="Deck" className="absolute inset-0 w-full h-full rounded object-cover" />
+            )}
+            <span className="absolute inset-0 flex items-center justify-center text-[8px] font-bold"
+              style={{ color: 'var(--gold)', textShadow: '0 0 4px rgba(0,0,0,0.9)' }}>
+              {state.opponent.deck.length}
+            </span>
+          </div>
+        </div>
+
+        {/* Opponent active fighter
+            During the select phase we intentionally show the PRE-combo character
+            so the opponent's transformation stays hidden until combat resolves.
+            If the opponent has no staged combo we fall back to their current active. */}
+        <div className="flex-shrink-0">
+          {(() => {
+            const opponentDisplayCard = isSelectPhase
+              ? (state.opponent.preComboCharacter ?? state.opponent.active)
+              : state.opponent.active;
+            // Hide the arsenal boost during select phase — it resolves on combat
+            const opponentDisplayArsenal = isSelectPhase ? null : state.opponent.activeArsenal;
+            return (
+              <ActiveSlot
+                active={opponentDisplayCard}
+                isPlayer={false}
+                areaId="opponent-active"
+                highlighted={highlightAreas.includes("opponent-active")}
+                activeArsenal={opponentDisplayArsenal}
+                onInspect={opponentDisplayCard ? () => handleInspectCard(opponentDisplayCard, false) : undefined}
+              />
+            );
+          })()}
+        </div>
+
+        {/* Destination zone — contested ground between fighters */}
+        <div className="flex-shrink-0">
+          <DestinationZone
+            destination={state.field.destination}
+            owner={state.field.destinationOwner}
+            playerId={state.player.id}
+            stagedCard={
+              state.player.selection.destinationUid
+                ? state.player.hand.find(c => c.uid === state.player.selection.destinationUid) ?? null
+                : null
+            }
+            dropHover={isHoverDest}
+            dropRef={drag.dropZoneRef("field-destination", ["destination"])}
+            onInspect={state.field.destination ? () => handleInspectCard(state.field.destination!, false) : undefined}
           />
         </div>
 
-        {/* Opponent active slot */}
-        <div className="mt-8">
+        {/* Player active fighter */}
+        <div className="flex-shrink-0">
           <ActiveSlot
-            active={state.opponent.active}
-            isPlayer={false}
-            areaId="opponent-active"
-            highlighted={highlightAreas.includes("opponent-active")}
-            onInspect={state.opponent.active ? () => handleInspectCard(state.opponent.active!, false) : undefined}
+            active={comboResult ?? selectedChar ?? state.player.active}
+            isPlayer
+            areaId="player-active"
+            highlighted={highlightAreas.includes("player-active")}
+            comboPreview={comboResult ? {
+              characterName: (selectedChar ?? state.player.active)?.name ?? '',
+              arsenalName: selectedComboArsenal?.name ?? '',
+            } : undefined}
+            activeArsenal={state.player.activeArsenal}
+            pendingArsenal={!comboResult && selectedComboArsenal ? selectedComboArsenal : null}
+            dropHover={isHoverActive}
+            dropRef={drag.dropZoneRef("player-active", ["character", "arsenal"])}
+            onInspect={
+              (comboResult ?? selectedChar ?? state.player.active)
+                ? () => handleInspectCard((comboResult ?? selectedChar ?? state.player.active)!, false)
+                : undefined
+            }
           />
         </div>
 
-        {/* Destination */}
-        <DestinationZone
-          destination={state.field.destination}
-          owner={state.field.destinationOwner}
-          playerId={state.player.id}
-          stagedCard={
-            state.player.selection.destinationUid
-              ? state.player.hand.find(c => c.uid === state.player.selection.destinationUid) ?? null
-              : null
-          }
-          dropHover={isHoverDest}
-          dropRef={drag.dropZoneRef("field-destination", ["destination"])}
-          onInspect={state.field.destination ? () => handleInspectCard(state.field.destination!, false) : undefined}
-        />
-
-        {/* Player active slot (with combo preview) */}
-        <ActiveSlot
-          active={comboResult ?? selectedChar ?? state.player.active}
-          isPlayer
-          areaId="player-active"
-          highlighted={highlightAreas.includes("player-active")}
-          comboPreview={comboResult ? {
-            characterName: (selectedChar ?? state.player.active)?.name ?? '',
-            arsenalName: selectedComboArsenal?.name ?? '',
-          } : undefined}
-          activeArsenal={state.player.activeArsenal}
-          pendingArsenal={!comboResult && selectedComboArsenal ? selectedComboArsenal : null}
-          dropHover={isHoverActive}
-          dropRef={drag.dropZoneRef("player-active", ["character", "arsenal"])}
-          onInspect={
-            (comboResult ?? selectedChar ?? state.player.active)
-              ? () => handleInspectCard((comboResult ?? selectedChar ?? state.player.active)!, false)
-              : undefined
-          }
-        />
-
-        {/* Action buttons */}
-        <div className="flex items-center gap-2 mt-1">
-          {/* Confirm Selection button */}
+        {/* Confirm + status — right side of arena */}
+        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-1.5">
           {canAct && (state.player.selection.characterUid || state.player.active) && (
             <button
               data-action="confirm"
               onClick={() => onAction({ type: "CONFIRM_SELECTION" })}
               disabled={!state.player.hasDrawnThisTurn}
               title={!state.player.hasDrawnThisTurn ? "Draw a card first" : undefined}
-              className="btn-game btn-game-crimson px-4 py-2 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-game px-4 py-2 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
             >
               ✦ Confirm
             </button>
           )}
 
+          {playerConfirmed && !opponentConfirmed && !state.winner && (
+            <div className="text-[10px] tracking-wider uppercase animate-arcane-pulse" style={{ color: "var(--text-muted)" }}>
+              Waiting…
+            </div>
+          )}
 
+          {state.phase === "resolve" && !state.winner && (
+            <div className="text-[10px] tracking-wider uppercase animate-arcane-pulse" style={{ color: "#a855f7" }}>
+              ⚔️ Resolving…
+            </div>
+          )}
+
+          {canAct && availableCombos.length > 0 && !state.player.selection.comboArsenalUid && (
+            <div className="text-[9px] tracking-wider text-center max-w-[120px]" style={{ color: "rgba(200,150,42,0.5)" }}>
+              ✦ {availableCombos.length} combo{availableCombos.length > 1 ? 's' : ''}
+            </div>
+          )}
         </div>
-
-        {/* Status messages */}
-        {playerConfirmed && !opponentConfirmed && !state.winner && (
-          <div
-            className="text-xs tracking-wider uppercase animate-arcane-pulse"
-            style={{ color: "var(--text-muted)" }}
-          >
-            Waiting for opponent...
-          </div>
-        )}
-
-        {state.phase === "resolve" && !state.winner && (
-          <div
-            className="text-xs tracking-wider uppercase animate-arcane-pulse"
-            style={{ color: "#a855f7" }}
-          >
-            ⚔️ Resolving combat...
-          </div>
-        )}
-
-        {/* Combo hint */}
-        {canAct && availableCombos.length > 0 && !state.player.selection.comboArsenalUid && (
-          <div
-            className="text-[10px] tracking-wider"
-            style={{ color: "rgba(200,150,42,0.5)" }}
-          >
-            ✦ {availableCombos.length} combo{availableCombos.length > 1 ? 's' : ''} available — drag an Arsenal onto your fighter
-          </div>
-        )}
       </div>
 
-      {/* === Bottom: Player Side === */}
-      <div className="flex-shrink-0">
-        {/* Player info + HP in one row */}
-        <div className="flex items-center gap-2">
-          <div
-            className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden"
-            style={{ background: 'rgba(200,150,42,0.2)', border: '2px solid rgba(200,150,42,0.4)' }}
-          >
-            {playerInfo?.avatarUrl ? (
-              <img src={playerInfo.avatarUrl} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-xs">⚔️</span>
-            )}
-          </div>
-          <div className="flex flex-col leading-none">
-            <span className="text-[10px] font-display font-bold tracking-wider uppercase" style={{ color: 'var(--text-primary)' }}>
-              {playerInfo?.name ?? 'You'}
-            </span>
-            {playerInfo?.rankTitle && (
-              <span className="text-[8px] font-bold tracking-wider uppercase" style={{ color: playerInfo.rankColor ?? 'var(--text-muted)' }}>
-                {playerInfo.rankTitle}
-              </span>
-            )}
-          </div>
-          <div className="flex-1">
+      {/* ═══ BOTTOM BAR: Player info + deck (left) — Hand (center) ═══ */}
+      <div className="flex-shrink-0 flex items-end gap-3 px-3 pb-2">
+        {/* Player identity + HP + deck — bottom-left */}
+        <div className="flex items-end gap-2 flex-shrink-0">
+          <div className="relative flex-shrink-0">
             <HPBar
               current={state.player.hp}
               max={state.player.maxHp}
@@ -547,72 +521,46 @@ export default function BattleBoard({
               align="left"
               recentDelta={playerHpDelta}
             />
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden"
+                style={{ background: 'rgba(200,150,42,0.3)', border: '2px solid rgba(200,150,42,0.5)' }}
+              >
+                {playerInfo?.avatarUrl ? (
+                  <img src={playerInfo.avatarUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-base">⚔️</span>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-
-        {/* Player hand */}
-        <div
-          data-area="player-hand"
-          className="flex items-center gap-1 mt-1 justify-center"
-        >
-          {state.player.hand.map((card) => {
-            const isHighlighted = highlightCards.includes(card.uid);
-            const isSelected =
-              state.player.selection.characterUid === card.uid ||
-              state.player.selection.comboArsenalUid === card.uid ||
-              state.player.selection.trickUids.includes(card.uid) ||
-              state.player.selection.destinationUid === card.uid;
-            const isStaged =
-              state.player.selection.characterUid === card.uid ||
-              state.player.selection.comboArsenalUid === card.uid;
-            const isDraggable = canDragCard(card);
-            const isBeingDragged = drag.state.dragging?.uid === card.uid;
-            const hasCombo =
-              (card.type === "arsenal" || card.type === "character") &&
-              availableCombos.some(c =>
-                card.type === "arsenal"
-                  ? c.arsenalUid === card.uid
-                  : state.player.hand.some(
-                      a => a.type === "arsenal" && findComboRecipe(state.comboRecipes, card.name, a.name),
-                    ),
-              );
-
-            return (
-              <CardInHand
-                key={card.uid}
-                card={card}
-                onInspect={() => handleInspectCard(card, true)}
-                onHoverStart={hasCombo ? () => handleCardHoverStart(card) : undefined}
-                onHoverEnd={hasCombo ? handleCardHoverEnd : undefined}
-                highlighted={(isHighlighted || isSelected) && !isBeingDragged}
-                staged={isStaged && !isBeingDragged}
-                disabled={isBeingDragged}
-                dragProps={isDraggable ? drag.draggableProps(card, true) : undefined}
-              />
-            );
-          })}
+          <div className="flex flex-col leading-none mb-1">
+            <span className="text-xs font-display font-bold tracking-wider uppercase" style={{ color: 'var(--text-primary)' }}>
+              {playerInfo?.name ?? 'You'}
+            </span>
+            {playerInfo?.rankTitle && (
+              <span className="text-[10px] font-bold tracking-wider uppercase" style={{ color: playerInfo.rankColor ?? 'var(--text-muted)' }}>
+                {playerInfo.rankTitle}
+              </span>
+            )}
+          </div>
+          {/* Player deck */}
           {(() => {
             const canDraw = canAct && !state.player.hasDrawnThisTurn && state.player.deck.length > 0;
             const deckHighlighted = canDraw || highlightAreas.includes("player-deck");
             return (
               <div
-                className={`relative ml-2 flex-shrink-0 ${canDraw ? "cursor-pointer" : ""}`}
+                className={`relative flex-shrink-0 ${canDraw ? "cursor-pointer" : ""}`}
                 title={canDraw ? "Click to draw a card" : `Deck: ${state.player.deck.length}`}
                 onClick={canDraw ? () => onAction({ type: "DRAW_CARD" }) : undefined}
                 data-area="player-deck"
               >
-                <div className={`relative w-20 h-28 sm:w-24 sm:h-32 ${deckHighlighted ? "animate-pulse" : ""}`}>
-                  {state.player.deck.length > 4 && (
-                    <img src="/card-back.webp" alt="" className="absolute top-0 left-0 w-full h-full rounded object-cover" style={{ transform: 'translate(4px, 4px)', filter: 'brightness(0.4)' }} />
-                  )}
-                  {state.player.deck.length > 3 && (
-                    <img src="/card-back.webp" alt="" className="absolute top-0 left-0 w-full h-full rounded object-cover" style={{ transform: 'translate(3px, 3px)', filter: 'brightness(0.5)' }} />
-                  )}
+                <div className={`relative w-[4.5rem] h-[6.25rem] ${deckHighlighted ? "animate-pulse" : ""}`}>
                   {state.player.deck.length > 2 && (
-                    <img src="/card-back.webp" alt="" className="absolute top-0 left-0 w-full h-full rounded object-cover" style={{ transform: 'translate(2px, 2px)', filter: 'brightness(0.6)' }} />
+                    <img src="/card-back.webp" alt="" className="absolute top-0 left-0 w-full h-full rounded object-cover" style={{ transform: 'translate(3px, 3px)', filter: 'brightness(0.45)' }} />
                   )}
                   {state.player.deck.length > 1 && (
-                    <img src="/card-back.webp" alt="" className="absolute top-0 left-0 w-full h-full rounded object-cover" style={{ transform: 'translate(1px, 1px)', filter: 'brightness(0.8)' }} />
+                    <img src="/card-back.webp" alt="" className="absolute top-0 left-0 w-full h-full rounded object-cover" style={{ transform: 'translate(1.5px, 1.5px)', filter: 'brightness(0.65)' }} />
                   )}
                   {state.player.deck.length > 0 && (
                     <img src="/card-back.webp" alt="Deck" className="absolute top-0 left-0 w-full h-full rounded object-cover shadow-lg" />
@@ -620,18 +568,64 @@ export default function BattleBoard({
                   {deckHighlighted && (
                     <div className="absolute inset-0 rounded ring-2 ring-yellow-400 pointer-events-none" style={{ boxShadow: '0 0 16px rgba(200,150,42,0.5)' }} />
                   )}
-                  <span className="absolute top-1 right-1 z-10 min-w-[1.35rem] h-[1.35rem] flex items-center justify-center rounded-full text-[11px] font-bold px-1" style={{ background: 'rgba(10,0,25,0.92)', border: '1.5px solid rgba(200,150,42,0.7)', color: 'var(--gold)', boxShadow: '0 0 8px rgba(200,150,42,0.45)' }}>
+                  <span className="absolute top-1 right-1 z-10 min-w-[1.35rem] h-[1.35rem] flex items-center justify-center rounded-full text-xs font-bold px-0.5"
+                    style={{ background: 'rgba(10,0,25,0.92)', border: '1.5px solid rgba(200,150,42,0.7)', color: 'var(--gold)', boxShadow: '0 0 8px rgba(200,150,42,0.4)' }}>
                     {state.player.deck.length}
                   </span>
                 </div>
                 {deckName && (
-                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 text-center text-[10px] font-display font-bold tracking-wider uppercase whitespace-nowrap" style={{ color: 'var(--gold)', textShadow: '0 0 4px rgba(0,0,0,0.8)' }}>
+                  <div className="text-center text-[10px] font-display font-bold tracking-wider uppercase whitespace-nowrap mt-0.5" style={{ color: 'var(--gold)', textShadow: '0 0 4px rgba(0,0,0,0.8)' }}>
                     {deckName}
                   </div>
                 )}
               </div>
             );
           })()}
+        </div>
+
+        {/* Player hand — fills remaining space */}
+        <div className="flex-1 flex items-end justify-center">
+          <div
+            data-area="player-hand"
+            className="flex items-end gap-1.5 flex-wrap justify-center"
+          >
+            {state.player.hand.map((card) => {
+              const isHighlighted = highlightCards.includes(card.uid);
+              const isSelected =
+                state.player.selection.characterUid === card.uid ||
+                state.player.selection.comboArsenalUid === card.uid ||
+                state.player.selection.trickUids.includes(card.uid) ||
+                state.player.selection.destinationUid === card.uid;
+              const isStaged =
+                state.player.selection.characterUid === card.uid ||
+                state.player.selection.comboArsenalUid === card.uid;
+              const isDraggable = canDragCard(card);
+              const isBeingDragged = drag.state.dragging?.uid === card.uid;
+              const hasCombo =
+                (card.type === "arsenal" || card.type === "character") &&
+                availableCombos.some(c =>
+                  card.type === "arsenal"
+                    ? c.arsenalUid === card.uid
+                    : state.player.hand.some(
+                        a => a.type === "arsenal" && findComboRecipe(state.comboRecipes, card.name, a.name),
+                      ),
+                );
+
+              return (
+                <CardInHand
+                  key={card.uid}
+                  card={card}
+                  onInspect={() => handleInspectCard(card, true)}
+                  onHoverStart={hasCombo ? () => handleCardHoverStart(card) : undefined}
+                  onHoverEnd={hasCombo ? handleCardHoverEnd : undefined}
+                  highlighted={(isHighlighted || isSelected) && !isBeingDragged}
+                  staged={isStaged && !isBeingDragged}
+                  disabled={isBeingDragged}
+                  dragProps={isDraggable ? drag.draggableProps(card, true) : undefined}
+                />
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -646,7 +640,7 @@ export default function BattleBoard({
           }}
         >
           <div
-            className="w-20 h-28 sm:w-24 sm:h-32 rounded flex flex-col p-1.5 text-left shadow-2xl"
+            className="w-20 h-28 sm:w-24 sm:h-[8.5rem] rounded flex flex-col p-1.5 text-left shadow-2xl"
             style={{
               background: "linear-gradient(135deg, rgba(15,0,32,0.95), rgba(8,0,18,0.95))",
               border: `2px solid ${drag.state.overZone ? "#4ade80" : "var(--gold-bright)"}`,
@@ -675,7 +669,7 @@ export default function BattleBoard({
         </div>
       )}
 
-      {/* ── Hover combo preview panel (desktop, side panel) ── */}
+      {/* ── Hover combo preview panel (near hand) ── */}
       {hoverPreview && !inspectedCard && (
         <CardDisplayPanel
           card={hoverPreview.card}
@@ -693,7 +687,6 @@ export default function BattleBoard({
         <CardDisplayPanel
           card={inspectedCard}
           isHidden={inspectIsHidden}
-          comboInfo={inspectComboInfo}
           action={inspectAction}
           onClose={closeInspect}
           mode="inspect"

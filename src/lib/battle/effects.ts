@@ -19,7 +19,7 @@ export type EffectHandler = (
   card: BattleCard,
   effect: CardEffect,
   ownerId: string,
-) => { state: GameState; events: GameEvent[] };
+) => { state: GameState; events: GameEvent[]; description?: string };
 
 // ─── Registry ──────────────────────────────────────────────────────────────
 
@@ -34,7 +34,7 @@ export function resolveEffect(
   card: BattleCard,
   effect: CardEffect,
   ownerId: string,
-): { state: GameState; events: GameEvent[] } {
+): { state: GameState; events: GameEvent[]; description?: string } {
   const handler = effectRegistry.get(effect.handler);
   if (!handler) {
     // Unknown effect — log and skip
@@ -62,7 +62,7 @@ export function resolveEffects(
         type: 'EFFECT_TRIGGERED',
         card,
         effect,
-        description: effect.description,
+        description: result.description ?? effect.description,
       },
       ...result.events,
     );
@@ -148,13 +148,19 @@ registerEffect('boost_attack', (state, _card, effect, ownerId) => {
   return { state: newState, events: [] };
 });
 
-/** boost_defense — Boost defense of the active card */
+/** boost_defense — Boost defense of the active card (optionally filter by characterType) */
 registerEffect('boost_defense', (state, _card, effect, ownerId) => {
   const amount = (effect.params?.amount as number) ?? 0;
+  const characterTypeFilter = effect.params?.characterType as string | undefined;
   const isPlayer = state.player.id === ownerId;
   const playerState: PlayerState = isPlayer ? state.player : state.opponent;
 
   if (!playerState.active) return { state, events: [] };
+
+  // If a characterType filter is set, only boost matching character types
+  if (characterTypeFilter && playerState.active.characterType !== characterTypeFilter) {
+    return { state, events: [] };
+  }
 
   const boosted = {
     ...playerState.active,
@@ -203,6 +209,61 @@ registerEffect('draw_cards', (state, _card, effect, ownerId) => {
   };
 });
 
+/** draw_cards_by_type — Search the deck and draw limited amount of cards of specific type */
+registerEffect('draw_cards_by_type', (state, _card, effect, ownerId) => {
+  const amount = (effect.params?.amount as number) ?? 1;
+  const cardTypeFilter = effect.params?.cardType as string | undefined;
+  const typeName = effect.params?.typeName as string ?? 'card';
+  
+  const isPlayer = state.player.id === ownerId;
+  const playerState: PlayerState = isPlayer ? state.player : state.opponent;
+
+  const drawn: BattleCard[] = [];
+  const newDeck = [...playerState.deck];
+  const newHand = [...playerState.hand];
+
+  // Filter deck by type, then draw
+  // We go from end of deck (top) to beginning (bottom)
+  for (let i = 0; i < amount; i++) {
+    // Find highest index of matching type
+    const cardIndex = newDeck.findLastIndex(c => c.type === cardTypeFilter);
+    if (cardIndex === -1) break;
+    
+    // Remove from original deck and add to hand
+    const card = newDeck.splice(cardIndex, 1)[0];
+    newHand.push(card);
+    drawn.push(card);
+  }
+
+  const updated: PlayerState = {
+    ...playerState,
+    deck: newDeck,
+    hand: newHand,
+  };
+  const newState: GameState = isPlayer
+    ? { ...state, player: updated }
+    : { ...state, opponent: updated };
+
+  let description = "No effect.";
+  if (drawn.length === 0) {
+    description = `No more ${typeName}s left!`;
+  } else if (drawn.length === 1) {
+    description = `Drew 1 ${typeName}.`;
+  } else {
+    description = `Drew ${drawn.length} ${typeName}s.`;
+  }
+
+  return {
+    state: newState,
+    events: drawn.map(c => ({
+      type: 'CARD_DRAWN' as const,
+      playerId: ownerId,
+      card: c,
+    })),
+    description,
+  };
+});
+
 /** combo_bonus_attack — Extra attack bonus when a combo is formed */
 registerEffect('combo_bonus_attack', (state, _card, effect, ownerId) => {
   const amount = (effect.params?.amount as number) ?? 0;
@@ -241,6 +302,40 @@ registerEffect('combo_bonus_defense', (state, _card, effect, ownerId) => {
     : { ...state, opponent: updated };
 
   return { state: newState, events: [] };
+});
+
+/** disarm_both — Strip the active arsenal from BOTH players and send it to their discard */
+registerEffect('disarm_both', (state, _card, _effect, _ownerId) => {
+  const events: GameEvent[] = [];
+  let newState = state;
+
+  if (state.player.activeArsenal) {
+    const dropped = state.player.activeArsenal;
+    newState = {
+      ...newState,
+      player: {
+        ...newState.player,
+        activeArsenal: null,
+        discard: [...newState.player.discard, dropped],
+      },
+    };
+    events.push({ type: 'ARSENAL_DROPPED', playerId: state.player.id, arsenal: dropped });
+  }
+
+  if (state.opponent.activeArsenal) {
+    const dropped = state.opponent.activeArsenal;
+    newState = {
+      ...newState,
+      opponent: {
+        ...newState.opponent,
+        activeArsenal: null,
+        discard: [...newState.opponent.discard, dropped],
+      },
+    };
+    events.push({ type: 'ARSENAL_DROPPED', playerId: state.opponent.id, arsenal: dropped });
+  }
+
+  return { state: newState, events };
 });
 
 /** recover_arsenal — Return the equipped arsenal to the owner's hand instead of discarding */

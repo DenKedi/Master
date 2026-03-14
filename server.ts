@@ -11,6 +11,7 @@ import { parse } from 'url';
 import next from 'next';
 import { getSocketServer } from './src/lib/socket';
 import connectDB from './src/lib/mongodb';
+import { syncCardsFromRegistry } from './src/lib/cards/sync';
 
 const hostname = process.env.HOST ?? 'localhost';
 const port = parseInt(process.env.PORT ?? '3000', 10);
@@ -25,6 +26,14 @@ app.prepare().then(async () => {
   } catch (error) {
     console.error('> Error connecting to MongoDB:', error);
     process.exit(1);
+  }
+
+  // Sync card registry → MongoDB on every startup
+  try {
+    const { created, updated, deactivated } = await syncCardsFromRegistry();
+    console.log(`> Card sync complete: ${created} created, ${updated} updated, ${deactivated} deactivated`);
+  } catch (error) {
+    console.error('> Card sync failed (non-fatal):', error);
   }
 
   const httpServer = createServer((req, res) => {

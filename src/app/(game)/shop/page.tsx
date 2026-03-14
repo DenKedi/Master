@@ -1,197 +1,248 @@
 "use client";
-import { useEffect, useState } from "react";
-import { IPack } from "@/types";
-import LoadingDots from "@/components/ui/LoadingDots";
 
-const TYPE_LABELS: Record<string, string> = {
-  standard: "Standard Pack",
-  premium: "Premium Pack",
-  sale: "🔥 On Sale",
-  bundle: "📦 Bundle",
-};
+import React, { useEffect, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
+import ArmoryPanel from "@/components/shop/ArmoryPanel";
+import FlippableCard from "@/components/ui/FlippableCard";
+import { RENDER_V } from "@/lib/renderVersion";
+import { RARITY_COLORS } from "@/lib/rarityColors";
+import { usePrefetch } from "@/hooks/usePrefetch";
 
 export default function ShopPage() {
-  const [packs, setPacks] = useState<IPack[]>([]);
-  const [currency, setCurrency] = useState<number>(0);
+  const prefetch = usePrefetch();
+  const [data, setData] = useState<{ packs: any[]; sleeves: any[]; cards: any[] }>({ packs: [], sleeves: [], cards: [] });
+  const [ownedCardIds, setOwnedCardIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const [purchasing, setPurchasing] = useState<string | null>(null);
-  const [result, setResult] = useState<{ cards: any[]; packName: string } | null>(null);
-  const [error, setError] = useState("");
+  const [previewCard, setPreviewCard] = useState<any | null>(null);
+  const [buying, setBuying] = useState<string | null>(null);
+  const [buyError, setBuyError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/shop").then((r) => r.json()),
-      fetch("/api/currency").then((r) => r.json()),
-    ]).then(([shopData, currencyData]) => {
-      setPacks(shopData.data ?? []);
-      setCurrency(currencyData.data?.balance ?? 0);
+      fetch("/api/admin/store").then(res => res.json()),
+      fetch("/api/admin/store/sleeves").then(res => res.json()),
+      fetch("/api/admin/store/cards").then(res => res.json()),
+      fetch("/api/shop/cards").then(res => res.json()),
+    ]).then(([packRes, sleeveRes, cardRes, ownedRes]) => {
+      setData({ packs: packRes.data || [], sleeves: sleeveRes.data || [], cards: cardRes.data || [] });
+      setOwnedCardIds(new Set((ownedRes.data?.ownedIds ?? []) as string[]));
       setLoading(false);
     });
   }, []);
 
-  async function buyPack(packId: string) {
-    setPurchasing(packId);
-    setError("");
-    setResult(null);
-
-    const res = await fetch("/api/shop/packs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ packId }),
-    });
-    const data = await res.json();
-    setPurchasing(null);
-
-    if (!data.success) {
-      setError(data.error ?? "Purchase failed");
-    } else {
-      setCurrency(data.data.remainingCurrency);
-      setResult({ cards: data.data.drawnCards, packName: data.data.packName });
+  const handleBuy = useCallback(async (cardId: string) => {
+    setBuying(cardId);
+    setBuyError(null);
+    try {
+      const res = await fetch("/api/shop/cards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cardId }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setBuyError(json.error ?? "Purchase failed");
+      } else {
+        setOwnedCardIds(prev => new Set([...prev, cardId]));
+        prefetch.cards.refetch();
+        if (previewCard?._id === cardId) {
+          setBuyError(null);
+        }
+      }
+    } catch {
+      setBuyError("Network error");
+    } finally {
+      setBuying(null);
     }
-  }
+  }, [previewCard]);
 
-  const effectivePrice = (pack: IPack) =>
-    pack.discount ? Math.floor(pack.price * (1 - pack.discount / 100)) : pack.price;
+  if (loading) return <div className="text-white p-10">Loading Store...</div>;
+
+  const featuredPacks = data.packs.filter(p => p.isActive && p.isFeatured);
+  const featureSleeves = data.sleeves.filter(s => s.isActive && s.isFeatured);
+  const featuredCards = data.cards.filter(c => c.isActive && c.isFeatured && c.price > 0);
+  const featuredItems = [
+    ...featuredPacks.map(p => ({ ...p, itemType: "pack" })),
+    ...featureSleeves.map(s => ({ ...s, itemType: "sleeve" })),
+    ...featuredCards.map(c => ({ ...c, itemType: "card" })),
+  ];
+
+  const standardPacks = data.packs.filter(p => p.isActive && !p.isFeatured);
+  const standardSleeves = data.sleeves.filter(s => s.isActive && !s.isFeatured);
+  const standardCards = data.cards.filter(c => c.isActive && !c.isFeatured && c.price > 0);
 
   return (
-    <div className="animate-slide-up">
-      {/* Header */}
-      <div className="mb-8 flex items-start justify-between gap-4">
+    <>
+      <div className="max-w-7xl mx-auto p-4 md:p-8 space-y-12">
         <div>
-          <div className="text-xs tracking-[0.3em] uppercase mb-2" style={{ color: 'var(--gold)' }}>✦ Black Market ✦</div>
-          <h1 className="font-display font-black text-3xl tracking-widest uppercase text-gold-gradient">Cursed Wares</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Deal with the devil. Bind new monsters.</p>
-        </div>
-        <div
-          className="flex items-center gap-2 px-4 py-2.5 font-black text-sm font-display shrink-0"
-          style={{
-            background: 'rgba(200,150,42,0.1)',
-            border: '1px solid var(--border-gold)',
-            color: 'var(--gold-bright)',
-            clipPath: 'polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%)'
-          }}
-        >
-          🪙 {currency.toLocaleString()}
-        </div>
-      </div>
-
-      {/* Pack Opening Result Modal */}
-      {result && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ background: 'rgba(0,0,0,0.85)' }}>
-          <div className="relative w-full max-w-lg panel p-8 animate-slide-up">
-            <div className="corner-tl" />
-            <div className="corner-br" />
-        <div className="text-xs tracking-[0.3em] uppercase mb-2" style={{ color: 'var(--gold)' }}>✦ Creatures Unbound ✦</div>
-            <h2 className="font-display font-black text-2xl tracking-widest uppercase text-gold-gradient mb-1">Pack Torn Open!</h2>
-            <p className="text-sm mb-6" style={{ color: 'var(--text-muted)' }}>{result.packName}</p>
-            <div className="grid grid-cols-3 gap-3 mb-6">
-              {result.cards.map((card: any, i: number) => (
-                <div
-                  key={i}
-                  className={`rarity-${card.rarity} border-2 flex flex-col items-center p-3 text-center`}
-                  style={{
-                    background: 'rgba(5,0,15,0.9)',
-                    clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))'
+          <h1 className="text-4xl font-black italic tracking-tighter uppercase text-white mb-2 pb-2 border-b-2 border-white/20">Featured Offers</h1>
+          {featuredItems.length > 0 ? (
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mt-6">
+              {featuredItems.map(item => (
+                <ArmoryPanel
+                  key={item._id}
+                  id={item._id}
+                  itemType={item.itemType as any}
+                  name={item.name}
+                  typeLabel={item.itemType === 'pack' ? 'Card Pack' : item.itemType === 'sleeve' ? 'Card Sleeve' : 'Single Card'}
+                  price={item.price}
+                  imageUrl={item.imageUrl || item.renderUrl}
+                  rarity={item.rarity ?? 'special'}
+                  owned={item.itemType === 'card' ? ownedCardIds.has(item._id) : undefined}
+                  onClick={(id) => {
+                    if (item.itemType === 'card') {
+                      setBuyError(null);
+                      setPreviewCard(item);
+                    }
                   }}
-                >
-                  <div className="text-3xl mb-2">📜</div>
-                  <div className="text-xs font-bold truncate w-full" style={{ color: 'var(--text-primary)' }}>{card.name}</div>
-                  <div className="text-xs capitalize mt-0.5" style={{ color: 'var(--text-muted)' }}>{card.rarity}</div>
-                </div>
+                  onBuy={item.itemType === 'card' ? handleBuy : undefined}
+                />
               ))}
             </div>
-            <button onClick={() => setResult(null)} className="btn-game w-full py-3">
-              ✔ Bind to Grimoire
-            </button>
-          </div>
+          ) : (
+            <p className="text-gray-500 italic mt-6">Check back soon for featured items!</p>
+          )}
         </div>
-      )}
 
-      {error && (
+        {standardPacks.length > 0 && (
+          <section>
+            <div className="flex items-center gap-4 mb-6 relative">
+               <div className="h-px bg-white/10 flex-grow" />
+               <h2 className="text-2xl font-black italic tracking-tighter uppercase text-white">Card Packs</h2>
+               <div className="h-px bg-white/10 flex-grow" />
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+              {standardPacks.map(p => (
+                <ArmoryPanel
+                  key={p._id}
+                  id={p._id}
+                  itemType="pack"
+                  name={p.name}
+                  typeLabel="Standard Pack"
+                  price={p.price}
+                  imageUrl={p.imageUrl}
+                  rarity="normal"
+                  onClick={() => console.log('Buy', p._id)}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {standardSleeves.length > 0 && (
+          <section>
+            <div className="flex items-center gap-4 mb-6 relative">
+               <div className="h-px bg-white/10 flex-grow" />
+               <h2 className="text-2xl font-black italic tracking-tighter uppercase text-white">Card Sleeves</h2>
+               <div className="h-px bg-white/10 flex-grow" />
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+              {standardSleeves.map(s => (
+                <ArmoryPanel
+                  key={s._id}
+                  id={s._id}
+                  itemType="sleeve"
+                  name={s.name}
+                  typeLabel="Kosmetic Sleeve"
+                  price={s.price}
+                  imageUrl={s.imageUrl}
+                  rarity="nice"
+                  onClick={() => console.log('Buy', s._id)}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {standardCards.length > 0 && (
+          <section>
+            <div className="flex items-center gap-4 mb-6 relative">
+               <div className="h-px bg-white/10 flex-grow" />
+               <h2 className="text-2xl font-black italic tracking-tighter uppercase text-white">Single Cards</h2>
+               <div className="h-px bg-white/10 flex-grow" />
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+              {standardCards.map(c => (
+                <ArmoryPanel
+                  key={c._id}
+                  id={c._id}
+                  itemType="card"
+                  name={c.name}
+                  typeLabel="Single Card"
+                  price={c.price}
+                  imageUrl={c.imageUrl || c.renderUrl}
+                  rarity={c.rarity ?? 'normal'}
+                  owned={ownedCardIds.has(c._id)}
+                  onClick={() => { setBuyError(null); setPreviewCard(c); }}
+                  onBuy={handleBuy}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
+
+      {/* Card Preview Modal */}
+      {previewCard && typeof window !== "undefined" && createPortal(
         <div
-          className="mb-6 flex items-center gap-2 px-4 py-3 text-sm"
-          style={{ background: 'rgba(155,26,42,0.2)', border: '1px solid rgba(155,26,42,0.4)', color: '#ff8888' }}
+          className="fixed inset-0 bg-black/85 z-[200] flex items-center justify-center p-4"
+          onClick={() => { setPreviewCard(null); setBuyError(null); }}
         >
-          ⚠ {error}
-        </div>
-      )}
+          <div
+            className="relative flex flex-col items-center gap-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close */}
+            <button
+              onClick={() => { setPreviewCard(null); setBuyError(null); }}
+              className="absolute -top-3 -right-3 z-10 w-8 h-8 rounded-full bg-gray-800 border border-white/20 text-white text-sm flex items-center justify-center hover:bg-gray-700 transition-colors"
+            >
+              ✕
+            </button>
 
-      {loading ? (
-        <LoadingDots label="The merchant stirs in the dark…" />
-      ) : packs.length === 0 ? (
-        <div className="flex items-center justify-center h-40" style={{ color: 'var(--text-muted)' }}>No packs available in the realm.</div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {packs.map((pack) => {
-            const price = effectivePrice(pack);
-            const canAfford = currency >= price;
-            return (
-              <div
-                key={pack._id}
-                className="relative flex flex-col panel card-lift p-6 gap-4"
-                style={{ clipPath: 'polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px))' }}
-              >
-                <div className="corner-tl" />
-                {/* Pack type + discount */}
-                <div className="flex items-start justify-between">
-                  <div>
-                    <span
-                      className="text-xs font-bold tracking-widest uppercase"
-                      style={{ color: pack.type === 'premium' ? '#c084fc' : pack.type === 'sale' ? '#f87171' : 'var(--gold)' }}
-                    >
-                      {TYPE_LABELS[pack.type] ?? pack.type}
-                    </span>
-                    <h3 className="font-display font-bold text-base tracking-wider uppercase mt-0.5" style={{ color: 'var(--text-primary)' }}>
-                      {pack.name}
-                    </h3>
-                  </div>
-                  {pack.discount && (
-                    <span
-                    className="btn-game text-xs font-black px-2 py-0.5"
-                    style={{ background: 'var(--crimson-bright)', color: '#fff', clipPath: 'polygon(4px 0%,100% 0%,calc(100% - 4px) 100%,0% 100%)' }}
-                  >
-                    CURSED -{pack.discount}%
-                    </span>
-                  )}
-                </div>
+            {/* FlippableCard — use cardId slug for unambiguous render lookup */}
+            <div style={{ width: "min(80vw, 280px)" }}>
+              <FlippableCard
+                frontSrc={`/api/cards/render/${encodeURIComponent(previewCard.cardId)}?v=${RENDER_V}`}
+                name={previewCard.name}
+                rarity={previewCard.rarity}
+                rarityColor={RARITY_COLORS[previewCard.rarity] ?? "rgba(200,150,42,0.6)"}
+                cardType={previewCard.type}
+              />
+            </div>
 
-                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{pack.description}</p>
-
-                <div className="flex gap-4 text-xs" style={{ color: 'var(--text-muted)' }}>
-                  <span>📦 {pack.cardCount} relics</span>
-                  {pack.guaranteedRarity && (
-                    <span className="capitalize" style={{ color: 'var(--gold)' }}>☠ 1x {pack.guaranteedRarity} guaranteed</span>
-                  )}
-                </div>
-
-                {/* Price + Buy */}
-                <div
-                  className="mt-auto flex items-center justify-between pt-4"
-                  style={{ borderTop: '1px solid var(--border-gold)' }}
-                >
-                  <div>
-                    {pack.discount ? (
-                      <div className="flex flex-col">
-                        <span className="line-through text-xs" style={{ color: 'var(--text-muted)' }}>🪙 {pack.price}</span>
-                        <span className="font-black font-display" style={{ color: 'var(--gold-bright)' }}>🪙 {price}</span>
-                      </div>
-                    ) : (
-                      <span className="font-black font-display" style={{ color: 'var(--gold-bright)' }}>🪙 {pack.price}</span>
-                    )}
-                  </div>
-                  <button
-                    disabled={!canAfford || purchasing === pack._id}
-                    onClick={() => buyPack(pack._id)}
-                    className={`btn-game text-sm px-5 py-2 ${!canAfford ? 'btn-game-crimson' : ''}`}
-                  >
-                    {purchasing === pack._id ? 'Binding...' : canAfford ? '🗡️ Acquire' : 'Insufficient Coins'}
-                  </button>
-                </div>
+            {/* Card Info */}
+            <div className="text-center">
+              <p className="text-xl font-black text-white">{previewCard.name}</p>
+              <p className="text-xs uppercase tracking-widest text-gray-400 mt-0.5">{previewCard.type} · {previewCard.rarity}</p>
+              <div className="flex items-center justify-center gap-1 mt-2 text-[var(--gold-bright)]">
+                <span>🪙</span>
+                <span className="font-bold text-lg">{previewCard.price}</span>
               </div>
-            );
-          })}
-        </div>
+            </div>
+
+            {/* Buy / Owned */}
+            {ownedCardIds.has(previewCard._id) ? (
+              <div className="bg-green-900/40 border border-green-600/50 text-green-400 font-bold text-sm px-6 py-2 rounded-lg">
+                ✓ Already in your collection
+              </div>
+            ) : (
+              <button
+                onClick={() => handleBuy(previewCard._id)}
+                disabled={buying === previewCard._id}
+                className="bg-[var(--gold)] hover:bg-[var(--gold-bright)] disabled:opacity-60 text-black font-black uppercase tracking-wider text-sm px-8 py-2.5 rounded-lg transition-colors"
+              >
+                {buying === previewCard._id ? "Buying…" : `Buy for 🪙 ${previewCard.price}`}
+              </button>
+            )}
+
+            {buyError && (
+              <p className="text-red-400 text-sm font-semibold">{buyError}</p>
+            )}
+          </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   );
 }

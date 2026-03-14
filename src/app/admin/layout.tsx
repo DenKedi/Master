@@ -9,17 +9,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   const navItems = [
+    { href: "/admin/cards",      label: "Cards",      icon: "🃏" },
     { href: "/admin",            label: "Overlord",   icon: "👁" },
     { href: "/admin/users",      label: "Goblins",   icon: "💀" },
     { href: "/admin/statistics", label: "Dark Tome",  icon: "📜" },
-    { href: "/admin/store",      label: "Armoury",    icon: "🗡️" },
+    { href: "/admin/store",      label: "Black Market",icon: "🗡️" },
   ];
 
   return (
-    <div className="min-h-screen flex" style={{ background: 'var(--bg-void)' }}>
+    <div className="h-screen flex overflow-hidden" style={{ background: 'var(--bg-void)' }}>
       {/* Sidebar */}
       <aside
-        className="w-56 shrink-0 flex flex-col p-5 gap-1"
+        className="w-56 shrink-0 flex flex-col p-5 gap-1 h-screen sticky top-0"
         style={{
           background: 'linear-gradient(180deg, rgba(20,0,40,0.98) 0%, rgba(10,0,20,0.98) 100%)',
           borderRight: '1px solid rgba(180,80,240,0.25)',

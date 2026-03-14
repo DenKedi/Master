@@ -19,33 +19,32 @@ export interface IUser {
 // ─── Card ─────────────────────────────────────────────────────────────────────
 export type CardRarity = 'normal' | 'nice' | 'special' | 'uiiiii' | 'unknown';
 export type CardType = 'character' | 'arsenal' | 'destination' | 'trick';
-export type CardTier = 'base' | 'advanced';
-export type CharacterType = 'human' | 'goblin' | 'beast' | 'demon';
+export type CharacterType = 'human' | 'goblin' | 'beast' | 'underworld';
 
 export interface ICard {
   _id: string;
+  cardId: string;
   name: string;
   description: string;
   rarity: CardRarity;
   type: CardType;
-  tier: CardTier;
   imageUrl: string;
   attack: number;
   defense: number;
-  effect?: string; // only advanced cards may have effects
-  cost: number;
+  effect?: string;
   tags: string[];
   characterType?: CharacterType;
   isActive: boolean;
+  setId?: string;
   createdAt: Date;
 }
 
 // ─── Card Recipe (Combination) ────────────────────────────────────────────────
 export interface ICardRecipe {
   _id: string;
-  ingredientA: string; // Card ID (base card)
-  ingredientB: string; // Card ID (base card)
-  result: string; // Card ID (advanced card produced)
+  ingredientA: string; // Card ID
+  ingredientB: string; // Card ID
+  result: string; // Card ID produced by the combination
   createdAt: Date;
 }
 
@@ -76,7 +75,7 @@ export interface IDeck {
   _id: string;
   userId: string;
   name: string;
-  /** Card IDs in the deck (max DECK_SIZE) */
+  /** Card IDs in the deck (MIN_DECK_SIZE..MAX_DECK_SIZE) */
   cards: string[];
   /** Whether this is the active deck used for matchmaking */
   isActive: boolean;
@@ -105,6 +104,7 @@ export interface IPack {
 
 // ─── Transaction ──────────────────────────────────────────────────────────────
 export type TransactionType =
+  | 'purchase'
   | 'pack_purchase'
   | 'currency_grant'
   | 'currency_spend'

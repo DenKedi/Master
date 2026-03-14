@@ -43,6 +43,8 @@ export interface CardEffect {
 /** A card as it exists inside the battle engine (no DB ids needed) */
 export interface BattleCard {
   uid: string; // unique instance id within the battle
+  /** Unique card slug (e.g. 'goblin-bungler') — used for render URLs */
+  cardId?: string;
   name: string;
   description: string;
   type: BattleCardType;
@@ -70,8 +72,10 @@ export interface BattleComboRecipe {
   characterName: string;
   /** Arsenal card name (matched case-insensitive) */
   arsenalName: string;
-  /** The resulting combo card */
+  /** The resulting combo card (at its standalone base stats) */
   result: BattleCard;
+  /** Stat bonus applied on top of base stats when produced via this recipe */
+  bonus?: { attack: number; defense: number };
 }
 
 // ─── Turn Selection ────────────────────────────────────────────────────────
@@ -80,6 +84,15 @@ export interface BattleComboRecipe {
  * Player's pending selections for the current turn.
  * Both players fill these in simultaneously during the 'select' phase.
  */
+/** Snapshot of player state before an arsenal confirm, used for undo */
+export interface PreArsenalSnapshot {
+  active: BattleCard | null;
+  activeArsenal: BattleCard | null;
+  preComboCharacter: BattleCard | null;
+  /** The arsenal card that was consumed (needs to be restored on undo) */
+  arsenalCard: BattleCard;
+}
+
 export interface TurnSelection {
   /** UID of a character card from hand to play as active (replaces current) */
   characterUid: string | null;
@@ -89,6 +102,10 @@ export interface TurnSelection {
   trickUids: string[];
   /** UID of a destination card to play */
   destinationUid: string | null;
+  /** Has the player confirmed their arsenal use? (combo/equip resolves immediately) */
+  arsenalConfirmed: boolean;
+  /** Snapshot for undoing an arsenal confirm */
+  preArsenalState?: PreArsenalSnapshot;
   /** Has this player locked in their choices? */
   confirmed: boolean;
 }
@@ -99,6 +116,8 @@ export function emptySelection(): TurnSelection {
     comboArsenalUid: null,
     trickUids: [],
     destinationUid: null,
+    arsenalConfirmed: false,
+    preArsenalState: undefined,
     confirmed: false,
   };
 }
@@ -174,6 +193,7 @@ export type GameAction =
   | { type: 'REMOVE_TRICK'; cardUid: string }
   | { type: 'PLAY_DESTINATION'; cardUid: string }
   | { type: 'REMOVE_DESTINATION'; cardUid: string }
+  | { type: 'CONFIRM_ARSENAL' }
   | { type: 'CONFIRM_SELECTION' }
   | { type: 'UNDO_SELECTION' }
   | { type: 'DRAW_CARD' };

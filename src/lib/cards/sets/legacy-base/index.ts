@@ -8,29 +8,26 @@
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 import { registry } from '../../registry';
-import { allCharacters } from './characters';
-import { allArsenal } from './arsenal';
-import { allDestinations } from './destinations';
-import { allTricks } from './tricks';
-import { allCombos } from './combos';
-import { legacyBaseRecipes } from './recipes';
+import { defineSet } from '../../set';
+import * as cards from './cards';
 
-// Register all cards
-registry.registerAll([
-  ...allCharacters,
-  ...allArsenal,
-  ...allDestinations,
-  ...allTricks,
-  ...allCombos,
-]);
+export const legacyBaseSet = defineSet({
+  id: 'legacy-base',
+  pullRates: {
+    normal: 60,
+    nice: 25,
+    special: 10,
+    uiiiii: 4,
+    unknown: 1,
+  },
+  cards: Object.values(cards),
+});
 
-// Register combo recipes
-registry.registerRecipes(legacyBaseRecipes);
+// Auto-register on import
+registry.registerSet(legacyBaseSet);
 
-// Re-export for convenience
-export { allCharacters } from './characters';
-export { allArsenal } from './arsenal';
-export { allDestinations } from './destinations';
-export { allTricks } from './tricks';
-export { allCombos } from './combos';
-export { legacyBaseRecipes } from './recipes';
+/** Clear registry and re-register all legacy-base cards & recipes. */
+export function reloadLegacyBase(): void {
+  registry.clear();
+  registry.registerSet(legacyBaseSet);
+}

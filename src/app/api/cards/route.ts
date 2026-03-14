@@ -5,7 +5,7 @@ import CollectionModel from '@/models/Collection';
 import { apiOk, apiError } from '@/lib/utils';
 import { auth } from '@/lib/nextauth';
 
-// GET /api/cards — List all active cards (optionally filter by rarity/type/tier)
+// GET /api/cards — List all active cards (optionally filter by rarity/type/characterType)
 export async function GET(req: NextRequest) {
   const [session] = await Promise.all([auth(), connectDB()]);
   if (!session) return apiError('Unauthorized', 401);
@@ -13,7 +13,6 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const rarity = searchParams.get('rarity');
   const type = searchParams.get('type');
-  const tier = searchParams.get('tier');
   const characterType = searchParams.get('characterType');
   const mine = searchParams.get('mine'); // "true" = only owned cards
 
@@ -28,7 +27,6 @@ export async function GET(req: NextRequest) {
   const filter: Record<string, unknown> = { isActive: true };
   if (rarity) filter.rarity = rarity;
   if (type) filter.type = type;
-  if (tier) filter.tier = tier;
   if (characterType) filter.characterType = characterType;
 
   const cards = await CardModel.find(filter)
@@ -50,14 +48,13 @@ export async function POST(req: NextRequest) {
     description,
     rarity,
     type,
-    tier,
     imageUrl,
-    cost,
     attack,
     defense,
     effect,
     tags,
     characterType,
+    isFeatured,
   } = body;
 
   if (
@@ -66,7 +63,6 @@ export async function POST(req: NextRequest) {
     !rarity ||
     !type ||
     !imageUrl ||
-    cost === undefined ||
     attack === undefined ||
     defense === undefined
   ) {
@@ -77,14 +73,13 @@ export async function POST(req: NextRequest) {
     description,
     rarity,
     type,
-    tier: tier || 'base',
     imageUrl,
-    cost,
     attack,
     defense,
     effect,
     tags,
     characterType: type === 'character' ? characterType : undefined,
+    isFeatured: isFeatured || false,
   });
   return apiOk(card, 201);
 }

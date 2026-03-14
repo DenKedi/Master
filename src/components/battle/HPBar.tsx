@@ -10,6 +10,11 @@ interface HPBarProps {
   recentDelta?: number;
 }
 
+/**
+ * 90-degree arc HP indicator.
+ * For player (align="left"): arc goes from bottom to left (bottom-left quadrant).
+ * For opponent (align="right"): arc goes from top to right (top-right quadrant).
+ */
 export default function HPBar({
   current,
   max,
@@ -21,57 +26,81 @@ export default function HPBar({
   const isLow = pct <= 30;
   const isCritical = pct <= 15;
 
-  const barColor = isCritical
-    ? "linear-gradient(90deg, #dc2626, #ef4444)"
-    : isLow
-    ? "linear-gradient(90deg, #f59e0b, #ef4444)"
-    : "linear-gradient(90deg, rgb(17, 3, 28), rgb(227, 185, 56))";
+const color = isCritical ? "#ef4444" : isLow ? "#f59e0b" : "#f0c040";
+  const trackColor = "rgba(255,255,255,0.08)";
 
-  const glowColor = isCritical
-    ? "0 0 12px rgba(220,38,38,0.5)"
-    : isLow
-    ? "0 0 10px rgba(245,158,11,0.4)"
-    : "0 0 6px rgba(227,185,56,0.3)";
+  // SVG arc parameters
+  const size = 100;
+  const stroke = 6;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const quarterArc = circumference / 4; // 90 degrees
+
+  // How much of the 90-degree arc to fill
+  const filledArc = quarterArc * (pct / 100);
+  const emptyArc = quarterArc - filledArc;
+
+  // Player (left): arc sweeps from right to bottom (bottom-right quadrant, opening inward)
+  // Opponent (right): arc sweeps from left to top (top-left quadrant, opening inward)
+  const rotation = align === "left" ? 0 : 180;
 
   return (
-    <div
-      className={`flex flex-col gap-1 ${align === "right" ? "items-end" : "items-start"}`}
-    >
-      <div className="flex items-center gap-2 w-full justify-between">
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="block">
+        {/* Track (background arc) */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={trackColor}
+          strokeWidth={stroke}
+          strokeDasharray={`${quarterArc} ${circumference - quarterArc}`}
+          strokeDashoffset={0}
+          strokeLinecap="round"
+          transform={`rotate(${rotation} ${size / 2} ${size / 2})`}
+        />
+        {/* Filled arc */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth={stroke}
+          strokeDasharray={`${filledArc} ${circumference - filledArc}`}
+          strokeDashoffset={0}
+          strokeLinecap="round"
+          transform={`rotate(${rotation} ${size / 2} ${size / 2})`}
+          style={{
+            transition: "stroke-dasharray 0.7s ease-out, stroke 0.3s",
+            filter: `drop-shadow(0 0 4px ${color}60)`,
+          }}
+        />
+      </svg>
+      {/* HP text above the arc */}
+      <div className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap">
         <span
-          className="text-[10px] font-bold tracking-widest uppercase"
-          style={{ color: "var(--text-muted)" }}
-        >
-          {label}
-        </span>
-        <span
-          className="text-xs font-bold tabular-nums"
-          style={{ color: isCritical ? "#ef4444" : isLow ? "#f59e0b" : "var(--gold-bright)" }}
+          className="text-[11px] font-bold tabular-nums leading-none"
+          style={{ color, textShadow: '0 0 6px rgba(0,0,0,0.8)' }}
         >
           {current}/{max}
         </span>
       </div>
-      <div
-        className="w-full h-1.5 rounded-full overflow-hidden relative"
-        style={{ background: "rgba(255,255,255,0.08)" }}
-      >
+      {/* Recent delta */}
+      {recentDelta && recentDelta < 0 && (
         <div
-          className="h-full rounded-full transition-all duration-700 ease-out"
+          className="absolute text-sm font-bold animate-slide-up"
           style={{
-            width: `${pct}%`,
-            background: barColor,
-            boxShadow: glowColor,
+            color: "#ef4444",
+            top: -8,
+            left: "50%",
+            transform: "translateX(-50%)",
           }}
-        />
-        {recentDelta && recentDelta < 0 && (
-          <div
-            className="absolute top-0 right-2 -mt-5 text-xs font-bold animate-slide-up"
-            style={{ color: "#ef4444" }}
-          >
-            {recentDelta}
-          </div>
-        )}
-      </div>
+        >
+          {recentDelta}
+        </div>
+      )}
     </div>
   );
 }

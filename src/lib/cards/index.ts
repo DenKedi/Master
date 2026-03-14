@@ -1,9 +1,6 @@
 export { registry } from './registry';
-export {
-  Card,
-  CharacterCard,
-  ArsenalCard,
-  DestinationCard,
-  TrickCard,
-  ComboResultCard,
-} from './base';
+export type { RegistryComboRecipe } from './registry';
+export { defineCard } from './define';
+export type { CardDefinition, CardComboRecipe } from './define';
+export { defineSet } from './set';
+export type { SetDefinition, RarityWeights } from './set';

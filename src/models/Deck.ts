@@ -3,10 +3,12 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 export interface DeckDocument extends Document {
   userId: mongoose.Types.ObjectId;
   name: string;
-  /** Ordered list of Card ObjectIds (exactly DECK_SIZE = 20 cards) */
+  /** Ordered list of Card ObjectIds (MIN_DECK_SIZE..MAX_DECK_SIZE cards) */
   cards: mongoose.Types.ObjectId[];
   /** Whether this is the player's active deck for matchmaking */
   isActive: boolean;
+  /** Per-deck card-back image override (falls back to user preference) */
+  cardBack?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -17,6 +19,7 @@ const DeckSchema = new Schema<DeckDocument>(
     name: { type: String, required: true, trim: true, maxlength: 40 },
     cards: [{ type: Schema.Types.ObjectId, ref: 'Card' }],
     isActive: { type: Boolean, default: false },
+    cardBack: { type: String },
   },
   { timestamps: true },
 );

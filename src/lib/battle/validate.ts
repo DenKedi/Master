@@ -53,6 +53,8 @@ export function isValidAction(
     case 'SELECT_COMBO': {
       if (!actor.hasDrawnThisTurn)
         return { valid: false, reason: 'Draw a card before taking actions.' };
+      if (actor.selection.arsenalConfirmed)
+        return { valid: false, reason: 'Arsenal already confirmed. Undo first.' };
       const arsenal = actor.hand.find(c => c.uid === action.arsenalUid);
       if (!arsenal) return { valid: false, reason: 'Arsenal not in hand.' };
       if (arsenal.type !== 'arsenal')
@@ -77,6 +79,8 @@ export function isValidAction(
     case 'DESELECT_COMBO': {
       if (!actor.hasDrawnThisTurn)
         return { valid: false, reason: 'Draw a card before taking actions.' };
+      if (actor.selection.arsenalConfirmed)
+        return { valid: false, reason: 'Arsenal already confirmed. Undo first.' };
       if (!actor.selection.comboArsenalUid)
         return { valid: false, reason: 'No combo selected to deselect.' };
       return { valid: true };
@@ -124,6 +128,13 @@ export function isValidAction(
           reason: 'You must draw a card before attacking.',
         };
 
+      // If an arsenal is staged but not yet confirmed, block
+      if (actor.selection.comboArsenalUid && !actor.selection.arsenalConfirmed)
+        return {
+          valid: false,
+          reason: 'Confirm your arsenal use first.',
+        };
+
       // Must have an active character (existing or selected) to confirm
       const willHaveActive = actor.selection.characterUid || actor.active;
       if (!willHaveActive)
@@ -131,6 +142,25 @@ export function isValidAction(
           valid: false,
           reason: 'Must have an active character to confirm.',
         };
+      return { valid: true };
+    }
+
+    case 'CONFIRM_ARSENAL': {
+      if (!actor.hasDrawnThisTurn)
+        return { valid: false, reason: 'Draw a card before taking actions.' };
+      if (!actor.selection.comboArsenalUid)
+        return { valid: false, reason: 'No arsenal staged to confirm.' };
+      if (actor.selection.arsenalConfirmed)
+        return { valid: false, reason: 'Arsenal already confirmed.' };
+      // Must have a character (active or selected) to combine with
+      const charForArsenal = actor.selection.characterUid
+        ? actor.hand.find(c => c.uid === actor.selection.characterUid)
+        : actor.active;
+      if (!charForArsenal)
+        return { valid: false, reason: 'No character to use arsenal with.' };
+      const arsenalCard = actor.hand.find(c => c.uid === actor.selection.comboArsenalUid);
+      if (!arsenalCard)
+        return { valid: false, reason: 'Arsenal card not in hand.' };
       return { valid: true };
     }
 

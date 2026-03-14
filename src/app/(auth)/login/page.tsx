@@ -1,5 +1,5 @@
 "use client";
-import { useState, FormEvent } from "react";
+import { useState, useEffect, useRef, FormEvent } from "react";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
@@ -10,6 +10,27 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const autoLoginAttempted = useRef(false);
+
+  // Dev auto-login: if env vars are set, fill in and submit
+  useEffect(() => {
+    if (autoLoginAttempted.current) return;
+    const devEmail = process.env.NEXT_PUBLIC_DEV_EMAIL;
+    const devPassword = process.env.NEXT_PUBLIC_DEV_PASSWORD;
+    if (devEmail && devPassword) {
+      autoLoginAttempted.current = true;
+      setEmail(devEmail);
+      setPassword(devPassword);
+      setLoading(true);
+      signIn("credentials", { email: devEmail, password: devPassword, redirect: false }).then(
+        (res) => {
+          setLoading(false);
+          if (res?.error) setError("Dev auto-login failed.");
+          else router.push("/hub");
+        },
+      );
+    }
+  }, [router]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -45,7 +66,7 @@ export default function LoginPage() {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="text-xs tracking-[0.4em] uppercase mb-3" style={{ color: 'var(--gold)' }}>✦ Login ✦</div>
-          <h1 className="text-4xl font-black tracking-widest text-gold-gradient font-display">MASTER</h1>
+          <h1 className="text-4xl font-black tracking-widest text-gold-gradient font-display">MASTER OF MASTERS</h1>
         </div>
 
         {/* Panel */}

@@ -4,57 +4,83 @@
  *  Set index files register their cards at import-time.
  *
  *  Usage:
- *    import '@/lib/cards/sets/legacy-base';   // registers cards
- *    import { registry } from '@/lib/cards';  // access them
- *    const squire = registry.get('Bumbling Squire');
+ *    import '@/lib/cards/sets/legacy-base';       // registers cards
+ *    import { registry } from '@/lib/cards';      // access them
+ *    const def = registry.get('goblin-bungler');  // by card id
  * ═══════════════════════════════════════════════════════════════════════════ */
 
-import type { Card } from './base/Card';
+import type { CardDefinition, CardComboRecipe } from './define';
+import type { SetDefinition } from './set';
 import type { BattleComboRecipe } from '../battle/types';
 
+/** Recipe stored internally — includes the result card id */
+export interface RegistryComboRecipe extends CardComboRecipe {
+  resultId: string;
+}
+
 class CardRegistry {
-  private cards = new Map<string, Card>();
-  private recipes: BattleComboRecipe[] = [];
+  private cards = new Map<string, CardDefinition>();
+  private sets = new Map<string, SetDefinition>();
+  private recipes: RegistryComboRecipe[] = [];
 
-  /** Register a card. Keyed by name (case-insensitive). */
-  register(card: Card): void {
-    const key = card.name.toLowerCase();
-    if (this.cards.has(key)) {
-      throw new Error(`Duplicate card registration: "${card.name}"`);
-    }
-    this.cards.set(key, card);
-  }
-
-  /** Register multiple cards at once. */
-  registerAll(cards: Card[]): void {
-    for (const card of cards) {
+  /** Register an entire set (cards + combo recipes extracted automatically). */
+  registerSet(set: SetDefinition): void {
+    this.sets.set(set.id, set);
+    for (const card of set.cards) {
       this.register(card);
+      // Auto-extract combo recipes from cards that define them
+      if (card.combo) {
+        for (const recipe of card.combo) {
+          this.recipes.push({ ...recipe, resultId: card.id });
+        }
+      }
     }
   }
 
-  /** Register combo recipes. */
-  registerRecipes(recipes: BattleComboRecipe[]): void {
-    this.recipes.push(...recipes);
+  /** Register a single card definition. Keyed by id. */
+  register(card: CardDefinition): void {
+    if (this.cards.has(card.id)) {
+      throw new Error(`Duplicate card registration: "${card.id}"`);
+    }
+    this.cards.set(card.id, card);
   }
 
-  /** Look up a card by name (case-insensitive). */
-  get(name: string): Card | undefined {
-    return this.cards.get(name.toLowerCase());
+  /** Look up a card definition by id. */
+  get(id: string): CardDefinition | undefined {
+    return this.cards.get(id);
   }
 
-  /** Get all registered cards. */
-  getAll(): Card[] {
+  /** Get all registered card definitions. */
+  getAll(): CardDefinition[] {
     return Array.from(this.cards.values());
   }
 
   /** Get all cards belonging to a specific set. */
-  getBySet(setName: string): Card[] {
-    return this.getAll().filter(c => c.set === setName);
+  getBySet(setId: string): CardDefinition[] {
+    const set = this.sets.get(setId);
+    return set ? set.cards : [];
   }
 
-  /** Get all registered combo recipes. */
-  getRecipes(): BattleComboRecipe[] {
+  /** Get a set definition (for pullRates etc.). */
+  getSet(setId: string): SetDefinition | undefined {
+    return this.sets.get(setId);
+  }
+
+  /** Get all registered set definitions. */
+  getAllSets(): SetDefinition[] {
+    return Array.from(this.sets.values());
+  }
+
+  /** Get all combo recipes extracted from card definitions. */
+  getRecipes(): RegistryComboRecipe[] {
     return [...this.recipes];
+  }
+
+  /** Clear all registered cards, sets, and recipes (for cache reload). */
+  clear(): void {
+    this.cards.clear();
+    this.sets.clear();
+    this.recipes = [];
   }
 
   /** Number of registered cards. */

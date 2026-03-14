@@ -1,35 +1,47 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
-import { CardRarity, CardType, CardTier, CharacterType } from "@/types";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
+import { useSearchParams, useRouter } from "next/navigation";
+import { CardRarity, CardType, CharacterType } from "@/types";
 import LoadingDots from "@/components/ui/LoadingDots";
+import FlippableCard from "@/components/ui/FlippableCard";
 import DeckBuilder, {
   type CollectionCard,
   type CollectionEntry,
   type DeckData,
 } from "@/components/cards/DeckBuilder";
-import { DECK_SIZE } from "@/lib/battle/constants";
+import { MIN_DECK_SIZE, MAX_DECK_SIZE } from "@/lib/battle/constants";
+import { usePrefetch } from "@/hooks/usePrefetch";
+import { RENDER_V } from "@/lib/renderVersion";
+import { RARITY_COLORS } from "@/lib/rarityColors";
 
-const RARITY_COLORS: Record<string, string> = {
+import Image from "next/image";
+
+const RARITY_FILTER_COLORS: Record<string, string> = {
   all: "var(--gold)",
-  normal: "#9ca3af",
-  nice: "#60a5fa",
-  special: "#f87171",
-  uiiiii: "#4ade80",
-  unknown: "#a855f7",
+  ...RARITY_COLORS,
 };
 
-const TYPE_LABELS: Record<CardType, { icon: string; label: string }> = {
-  character: { icon: "\u{1F9B9}", label: "Character" },
-  arsenal: { icon: "\u2694\uFE0F", label: "Arsenal" },
-  destination: { icon: "\u{1F3F0}", label: "Destination" },
-  trick: { icon: "\u2728", label: "Trick" },
+const RARITY_ORDER: Record<string, number> = {
+  unknown: 5,
+  uiiiii: 4,
+  special: 3,
+  nice: 2,
+  normal: 1,
 };
 
-const CHARACTER_TYPE_LABELS: Record<CharacterType, { icon: string; label: string }> = {
-  human: { icon: "\u{1F9D1}", label: "Human" },
-  goblin: { icon: "\u{1F47A}", label: "Goblin" },
-  beast: { icon: "\u{1F43A}", label: "Beast" },
-  demon: { icon: "\u{1F608}", label: "Demon" },
+const TYPE_LABELS: Record<CardType, { icon: React.ReactNode; label: string }> = {
+  character: { icon: <Image src="/icons/types/character.png" alt="Character" width={16} height={16} className="inline-block" />, label: "Character" },
+  arsenal: { icon: <Image src="/icons/types/arsenal.png" alt="Arsenal" width={16} height={16} className="inline-block" />, label: "Arsenal" },
+  destination: { icon: <Image src="/icons/types/destination.png" alt="Destination" width={16} height={16} className="inline-block" />, label: "Destination" },
+  trick: { icon: <Image src="/icons/types/trick.png" alt="Trick" width={16} height={16} className="inline-block" />, label: "Trick" },
+};
+
+const CHARACTER_TYPE_LABELS: Record<CharacterType, { icon: React.ReactNode; label: string }> = {
+  human: { icon: <Image src="/icons/character-types/human.png" alt="Human" width={16} height={16} className="inline-block" />, label: "Human" },
+  goblin: { icon: <Image src="/icons/character-types/goblin.png" alt="Goblin" width={16} height={16} className="inline-block" />, label: "Goblin" },
+  beast: { icon: <Image src="/icons/character-types/beast.png" alt="Beast" width={16} height={16} className="inline-block" />, label: "Beast" },
+  underworld: { icon: <Image src="/icons/character-types/underworld.png" alt="Underworld" width={16} height={16} className="inline-block" />, label: "Underworld" },
 };
 
 function FilterButton({
@@ -72,12 +84,10 @@ interface DeckListEntry {
 function DeckCard({
   deck,
   onEdit,
-  onDelete,
   onSetActive,
 }: {
   deck: DeckListEntry;
   onEdit: () => void;
-  onDelete: () => void;
   onSetActive: () => void;
 }) {
   const types = deck.cards.reduce<Record<string, number>>((acc, c) => {
@@ -110,7 +120,7 @@ function DeckCard({
 
       {/* Stats */}
       <div className="flex gap-3 text-xs" style={{ color: "var(--text-muted)" }}>
-        <span>{deck.cards.length}/{DECK_SIZE} cards</span>
+        <span>{deck.cards.length}/{MAX_DECK_SIZE} cards</span>
         {Object.entries(types).map(([t, n]) => (
           <span key={t}>
             {TYPE_LABELS[t as CardType]?.icon} {n}
@@ -119,34 +129,31 @@ function DeckCard({
       </div>
 
       {/* Actions */}
-      <div className="flex gap-2 mt-auto pt-2" style={{ borderTop: "1px solid rgba(200,150,42,0.1)" }}>
-        <button onClick={onEdit} className="btn-game px-3 py-1.5 text-xs flex-1">
-          ✎ Edit
+      <div className="flex gap-2 mt-auto pt-2 justify-end" style={{ borderTop: "1px solid rgba(200,150,42,0.1)" }}>
+        <button onClick={onEdit} className="btn-game px-2 py-1 text-[11px] font-bold tracking-wider">
+          ✎ EDIT
         </button>
         {!deck.isActive && (
-          <button onClick={onSetActive} className="btn-game px-3 py-1.5 text-xs flex-1" style={{ color: "var(--gold)" }}>
-            ★ Set Active
+          <button onClick={onSetActive} className="btn-game px-2 py-1 text-[11px] font-bold tracking-wider" style={{ color: "var(--gold)" }}>
+            ★ SET ACTIVE
           </button>
         )}
-        <button
-          onClick={onDelete}
-          className="btn-game px-3 py-1.5 text-xs"
-          style={{ color: "var(--crimson)" }}
-        >
-          ✕
-        </button>
       </div>
     </div>
   );
 }
 
 export default function CollectionPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const prefetch = usePrefetch();
   const [entries, setEntries] = useState<CollectionEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [rarityFilter, setRarityFilter] = useState<CardRarity | "all">("all");
   const [typeFilter, setTypeFilter] = useState<CardType | "all">("all");
-  const [tierFilter, setTierFilter] = useState<CardTier | "all">("all");
+
   const [characterTypeFilter, setCharacterTypeFilter] = useState<CharacterType | "all">("all");
+  const [showNewDeckBanner, setShowNewDeckBanner] = useState(false);
 
   // ─── Deck state ───────────────────────────────────────────────────────
   type ViewMode = "collection" | "decks" | "deck-builder";
@@ -155,30 +162,54 @@ export default function CollectionPage() {
   const [decksLoading, setDecksLoading] = useState(false);
   const [editingDeck, setEditingDeck] = useState<DeckData | null>(null);
 
-  useEffect(() => {
-    fetch("/api/cards?mine=true")
-      .then((r) => r.json())
-      .then((d) => {
-        setEntries(d.data ?? []);
-        setLoading(false);
-      });
-  }, []);
+  // ─── Card preview state ────────────────────────────────────────────────
+  const [previewCard, setPreviewCard] = useState<CollectionCard | null>(null);
 
-  // Fetch decks
+  // ─── New deck notification from tutorial ───────────────────────────────
+  useEffect(() => {
+    if (searchParams.get("newDeck") === "1") {
+      setShowNewDeckBanner(true);
+      setViewMode("decks");
+      // Clean the URL without triggering navigation
+      router.replace("/collection", { scroll: false });
+    }
+  }, [searchParams, router]);
+
+  // Seed from prefetch (cards)
+  useEffect(() => {
+    if (prefetch.cards.data) {
+      setEntries(prefetch.cards.data);
+      setLoading(false);
+    }
+  }, [prefetch.cards.data]);
+
+  // Seed from prefetch (decks)
+  useEffect(() => {
+    if (prefetch.decks.data) {
+      setDecks(prefetch.decks.data);
+      setDecksLoading(false);
+    }
+  }, [prefetch.decks.data]);
+
+  // Re-fetch decks (used after mutations)
   const fetchDecks = useCallback(async () => {
     setDecksLoading(true);
     try {
       const res = await fetch("/api/decks");
+      if (!res.ok) {
+        console.warn("fetchDecks: server responded", res.status);
+        setDecks([]);
+        return;
+      }
       const d = await res.json();
       setDecks(d.data ?? []);
+    } catch (err) {
+      console.warn("fetchDecks error:", err);
+      setDecks([]);
     } finally {
       setDecksLoading(false);
     }
   }, []);
-
-  useEffect(() => {
-    fetchDecks();
-  }, [fetchDecks]);
 
   // ─── Deck CRUD handlers ───────────────────────────────────────────────
   const handleNewDeck = () => {
@@ -240,9 +271,15 @@ export default function CollectionPage() {
     if (!e.cardId) return false;
     if (rarityFilter !== "all" && e.cardId.rarity !== rarityFilter) return false;
     if (typeFilter !== "all" && e.cardId.type !== typeFilter) return false;
-    if (tierFilter !== "all" && e.cardId.tier !== tierFilter) return false;
     if (characterTypeFilter !== "all" && e.cardId.characterType !== characterTypeFilter) return false;
     return true;
+  }).sort((a, b) => {
+    const rarityA = RARITY_ORDER[a.cardId?.rarity || "normal"] || 0;
+    const rarityB = RARITY_ORDER[b.cardId?.rarity || "normal"] || 0;
+    if (rarityA !== rarityB) {
+      return rarityB - rarityA;
+    }
+    return (a.cardId?.name || "").localeCompare(b.cardId?.name || "");
   });
 
   // ─── Deck Builder mode ─────────────────────────────────────────────────
@@ -252,19 +289,57 @@ export default function CollectionPage() {
         <DeckBuilder
           collection={entries}
           deck={editingDeck}
-          deckSize={DECK_SIZE}
+          deckSize={MAX_DECK_SIZE}
+          minDeckSize={MIN_DECK_SIZE}
           onSave={handleSaveDeck}
           onCancel={() => {
             setViewMode("decks");
             setEditingDeck(null);
           }}
+          onDelete={editingDeck?._id ? async () => {
+             await handleDeleteDeck(editingDeck._id as string);
+             setViewMode("decks");
+             setEditingDeck(null);
+          } : undefined}
         />
       </div>
     );
   }
 
   return (
+    <>
     <div className="animate-slide-up">
+      {/* ─── New Deck Acquired Banner ─── */}
+      {showNewDeckBanner && (
+        <div
+          className="mb-6 p-4 rounded-lg flex items-center justify-between gap-4 animate-slide-up"
+          style={{
+            background: "linear-gradient(135deg, rgba(200,150,42,0.15), rgba(15,0,32,0.9))",
+            border: "1px solid rgba(200,150,42,0.4)",
+            boxShadow: "0 0 20px rgba(200,150,42,0.15)",
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🎉</span>
+            <div>
+              <div className="font-display font-bold text-sm tracking-wider uppercase" style={{ color: "var(--gold)" }}>
+                New Deck Acquired: First Steps
+              </div>
+              <div className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                Your starter deck and cards have been added to your collection!
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowNewDeckBanner(false)}
+            className="text-sm px-3 py-1 rounded transition-colors hover:bg-white/10"
+            style={{ color: "var(--text-muted)" }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-6 flex flex-col gap-4">
         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -273,10 +348,10 @@ export default function CollectionPage() {
               className="text-xs tracking-[0.3em] uppercase mb-2"
               style={{ color: "var(--gold)" }}
             >
-              {"\u2726"} Collection {"\u2726"}
+              {"\u2726"} MASTER OF {"\u2726"}
             </div>
             <h1 className="font-display font-black text-3xl tracking-widest uppercase text-gold-gradient">
-              {viewMode === "decks" ? "My Decks" : "My Collection"}
+              {viewMode === "decks" ? "Decks" : "Cards"}
             </h1>
             <p
               className="text-sm mt-1 tracking-wide"
@@ -328,7 +403,7 @@ export default function CollectionPage() {
                 <FilterButton
                   key={r}
                   active={rarityFilter === r}
-                  color={RARITY_COLORS[r]}
+                  color={RARITY_FILTER_COLORS[r]}
                   onClick={() => setRarityFilter(r)}
                 >
                   {r === "unknown" ? "?" : r}
@@ -363,26 +438,6 @@ export default function CollectionPage() {
               ))}
             </div>
 
-            {/* Tier */}
-            <div className="flex gap-2 flex-wrap items-center">
-              <span
-                className="text-xs font-bold tracking-widest uppercase mr-1"
-                style={{ color: "var(--text-muted)" }}
-              >
-                Tier
-              </span>
-              {(["all", "base", "advanced"] as const).map((t) => (
-                <FilterButton
-                  key={t}
-                  active={tierFilter === t}
-                  color="var(--gold)"
-                  onClick={() => setTierFilter(t)}
-                >
-                  {t}
-                </FilterButton>
-              ))}
-            </div>
-
             {/* Character Type */}
             {(typeFilter === "all" || typeFilter === "character") && (
               <div className="flex gap-2 flex-wrap items-center">
@@ -399,7 +454,7 @@ export default function CollectionPage() {
                 >
                   All
                 </FilterButton>
-                {(["human", "goblin", "beast", "demon"] as const).map((ct) => (
+                {(["human", "goblin", "beast", "underworld"] as const).map((ct) => (
                   <FilterButton
                     key={ct}
                     active={characterTypeFilter === ct}
@@ -434,84 +489,63 @@ export default function CollectionPage() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
               {filtered.map((entry) => {
                 const card = entry.cardId;
                 if (!card) return null;
-                const rarityClass = `rarity-${card.rarity}`;
-                const isAdvanced = card.tier === "advanced";
 
                 return (
                   <div
                     key={entry._id}
-                    className={`card-lift relative flex flex-col border-2 ${rarityClass}`}
+                    className="card-lift relative rounded-lg overflow-hidden border-2 transition-all duration-150 cursor-pointer"
                     style={{
-                      background: isAdvanced
-                        ? "linear-gradient(160deg, rgba(40,10,60,0.95) 0%, rgba(15,0,32,0.95) 100%)"
-                        : "linear-gradient(160deg, rgba(15,0,32,0.95) 0%, rgba(8,0,18,0.95) 100%)",
-                      clipPath:
-                        "polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px))",
+                      borderColor: RARITY_COLORS[card.rarity] ?? "var(--border-gold)",
                     }}
+                    onClick={() => setPreviewCard(card)}
                   >
                     {entry.quantity > 1 && (
                       <span
-                        className="absolute top-2 right-2 z-10 text-xs font-black px-1.5 py-0.5 font-display"
+                        className="absolute top-1.5 right-1.5 z-10 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
                         style={{
-                          background: "var(--arcane)",
-                          color: "#e0ccff",
-                          clipPath: "polygon(4px 0%, 100% 0%, calc(100% - 4px) 100%, 0% 100%)",
+                          background: "rgba(0,0,0,0.75)",
+                          color: RARITY_COLORS[card.rarity],
+                          border: `1px solid ${RARITY_COLORS[card.rarity]}44`,
                         }}
                       >
-                        x{entry.quantity}
+                        ×{entry.quantity}
                       </span>
                     )}
-                    {isAdvanced && (
-                      <span
-                        className="absolute top-2 left-2 z-10 text-[10px] font-black px-1.5 py-0.5 font-display tracking-wider uppercase"
-                        style={{
-                          background: "linear-gradient(135deg, var(--gold), #d4a017)",
-                          color: "#1a0030",
-                        }}
-                      >
-                        ADV
-                      </span>
+
+                    {card.type === "destination" ? (
+                      <div className="relative w-full overflow-hidden" style={{ aspectRatio: "560/880" }}>
+                        <img
+                          src={`/api/cards/render/${encodeURIComponent(card.cardId)}?v=${RENDER_V}`}
+                          alt={card.name}
+                          loading="lazy"
+                          draggable={false}
+                          className="absolute top-1/2 left-1/2 drop-shadow-md"
+                          onLoad={(e) => { (e.target as HTMLElement).style.opacity = '1'; }}
+                          style={{
+                            width: "157.14%",
+                            height: "auto",
+                            transform: "translate(-50%, -50%) rotate(90deg)",
+                            opacity: 0,
+                            transition: "opacity 0.3s ease",
+                            maxWidth: "none",
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <img
+                        src={`/api/cards/render/${encodeURIComponent(card.cardId)}?v=${RENDER_V}`}
+                        alt={card.name}
+                        loading="lazy"
+                        draggable={false}
+                        className="w-full h-auto drop-shadow-md"
+                        onLoad={(e) => { (e.target as HTMLElement).style.opacity = '1'; }}
+                        style={{ opacity: 0, transition: 'opacity 0.3s ease' }}
+                      />
                     )}
-                    <div
-                      className="w-full aspect-[3/4] flex items-center justify-center text-5xl select-none"
-                      style={{ background: "rgba(0,0,0,0.4)" }}
-                    >
-                      {TYPE_LABELS[card.type].icon}
-                    </div>
-                    <div className="p-3 flex flex-col gap-1">
-                      <div
-                        className="font-display font-bold text-xs tracking-wider uppercase truncate"
-                        style={{ color: "var(--text-primary)" }}
-                      >
-                        {card.name}
-                      </div>
-                      <div
-                        className="flex justify-between text-xs"
-                        style={{ color: "var(--text-muted)" }}
-                      >
-                        <span className="capitalize">{card.type}{card.characterType ? ` • ${CHARACTER_TYPE_LABELS[card.characterType as CharacterType]?.icon ?? ''} ${card.characterType}` : ''}</span>
-                        <span className={`font-bold capitalize rarity-${card.rarity}`}>
-                          {card.rarity === "unknown" ? "?" : card.rarity}
-                        </span>
-                      </div>
-                      <div className="flex gap-3 text-xs mt-1">
-                        <span style={{ color: "#f87171" }}>{"\u2694"} {card.attack}</span>
-                        <span style={{ color: "#60a5fa" }}>{"\u{1F6E1}"} {card.defense}</span>
-                      </div>
-                      {card.effect && (
-                        <div
-                          className="text-[10px] mt-1 italic truncate"
-                          style={{ color: "var(--gold)" }}
-                          title={card.effect}
-                        >
-                          {"\u2728"} {card.effect}
-                        </div>
-                      )}
-                    </div>
                   </div>
                 );
               })}
@@ -519,6 +553,8 @@ export default function CollectionPage() {
           )}
         </>
       )}
+
+
 
       {/* ═══ Decks View ═══ */}
       {viewMode === "decks" && (
@@ -545,7 +581,7 @@ export default function CollectionPage() {
                 No Decks Yet
               </p>
               <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
-                Build your first deck of {DECK_SIZE} cards to use in battle.
+                Build your first deck of {MIN_DECK_SIZE}–{MAX_DECK_SIZE} cards to use in battle.
               </p>
             </div>
           ) : (
@@ -555,7 +591,6 @@ export default function CollectionPage() {
                   key={d._id}
                   deck={d}
                   onEdit={() => handleEditDeck(d)}
-                  onDelete={() => handleDeleteDeck(d._id)}
                   onSetActive={() => handleSetActive(d._id)}
                 />
               ))}
@@ -563,6 +598,66 @@ export default function CollectionPage() {
           )}
         </div>
       )}
+
     </div>
+
+      {/* ═══ Card Preview Modal (portal) ═══ */}
+      {previewCard && createPortal(
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0,0,0,0.92)",
+          }}
+          onClick={() => setPreviewCard(null)}
+        >
+          {/* Close button */}
+          <button
+            style={{
+              position: "absolute",
+              top: 16,
+              right: 16,
+              zIndex: 10000,
+              width: 40,
+              height: 40,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "50%",
+              fontSize: 20,
+              fontWeight: 700,
+              background: "rgba(0,0,0,0.6)",
+              color: "rgba(255,255,255,0.7)",
+              border: "1px solid rgba(255,255,255,0.15)",
+              cursor: "pointer",
+            }}
+            onClick={(e) => { e.stopPropagation(); setPreviewCard(null); }}
+          >
+            ✕
+          </button>
+
+          {/* FlippableCard with holographic spin */}
+          <div onClick={(e) => e.stopPropagation()} style={{ width: "min(80vw, 340px)" }}>
+            <FlippableCard
+              frontSrc={`/api/cards/render/${encodeURIComponent(previewCard.cardId)}?v=${RENDER_V}`}
+              name={previewCard.name}
+              rarity={previewCard.rarity}
+              rarityColor={RARITY_COLORS[previewCard.rarity] ?? "#9ca3af"}
+              cardType={previewCard.type as any}
+            />
+          </div>
+        </div>,
+        document.body
+      )}
+
+
+    </>
   );
 }

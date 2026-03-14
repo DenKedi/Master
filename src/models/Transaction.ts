@@ -16,6 +16,7 @@ const TransactionSchema = new Schema<TransactionDocument>(
     type: {
       type: String,
       enum: [
+        'purchase',
         'pack_purchase',
         'currency_grant',
         'currency_spend',

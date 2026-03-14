@@ -2,27 +2,23 @@ import { auth } from "@/lib/nextauth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { connectDB } from "@/lib/mongodb";
-import UserModel from "@/models/User";
 import tutorialImg from "@/app/Tutorial.webp";
+import HubPrefetchStatus from "@/components/ui/HubPrefetchStatus";
 
 export default async function HubPage() {
-  const [session] = await Promise.all([auth(), connectDB()]);
+  const session = await auth();
   if (!session) redirect("/login");
 
   const user = session.user as any;
-  const dbUser = await UserModel.findById(user.id).select("tutorialCompleted").lean();
-  const tutorialDone = dbUser?.tutorialCompleted ?? false;
 
   const playOptions = [
     {
-      href: "/hub/tutorial",
-      label: "Tutorial",
-      sub: tutorialDone ? "Completed ✓  —  Replay anytime" : "Learn the ways of the Keep",
+      href: "/hub/battle-v2",
+      label: "Quick Battle",
+      sub: "Face the Spider Queen",
       color: "rgba(200,150,42,0.15)",
       border: "var(--border-gold)",
       image: tutorialImg,
-      badge: tutorialDone ? "✓" : null,
     },
   ];
 
@@ -30,10 +26,13 @@ export default async function HubPage() {
     <div className="animate-slide-up">
       {/* Header */}
       <div className="mb-10">
-        <div className="text-xs tracking-[0.3em] uppercase mb-2" style={{ color: "var(--gold)" }}>✦ Missions ✦</div>
-        <h1 className="font-display font-black text-4xl sm:text-5xl tracking-widest uppercase text-gold-gradient">
-          Missions
-        </h1>
+        <div className="text-xs tracking-[0.3em] uppercase mb-2" style={{ color: "var(--gold)" }}>✦ Master of ✦</div>
+        <div className="flex items-center gap-4 flex-wrap">
+          <h1 className="font-display font-black text-4xl sm:text-5xl tracking-widest uppercase text-gold-gradient">
+            Missions
+          </h1>
+          {user.role === "admin" && <HubPrefetchStatus />}
+        </div>
         <p className="text-sm mt-2 tracking-wide" style={{ color: "var(--text-muted)" }}>Choose your path to glory.</p>
       </div>
 
@@ -64,16 +63,6 @@ export default async function HubPage() {
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#111111] to-transparent" />
               </div>
-            )}
-
-            {/* Badge */}
-            {option.badge && (
-              <span
-                className="absolute top-3 right-3 z-20 w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold"
-                style={{ background: "rgba(200,150,42,0.9)", color: "#111" }}
-              >
-                {option.badge}
-              </span>
             )}
 
             <div className="relative z-10">

@@ -16,7 +16,7 @@ const rajdhani = Rajdhani({
 });
 
 export const metadata: Metadata = {
-  title: "MASTER — Dark Card Conquest",
+  title: "Master of Masters",
   description: "Command monsters, forge dark pacts, crush the Inquisition.",
 };
 
@@ -31,6 +31,7 @@ export default function RootLayout({
         <SessionProvider>
           {children}
         </SessionProvider>
+        <div id="modal-portal" />
       </body>
     </html>
   );

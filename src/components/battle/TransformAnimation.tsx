@@ -11,6 +11,10 @@ export interface TransformSlide {
   isPlayer: boolean;
 }
 
+// Busts stale browser cache from old 24h Cache-Control headers
+import { RENDER_V } from "@/lib/renderVersion";
+const CACHE_BUST = `v=${RENDER_V}`;
+
 interface TransformAnimationProps {
   slides: TransformSlide[];
   onDone: () => void;
@@ -53,8 +57,10 @@ export default function TransformAnimation({
 }: TransformAnimationProps) {
   const [slideIdx, setSlideIdx] = useState(0);
   const [phase, setPhase] = useState<SlidePhase>("entering");
+  const phaseRef = useRef<SlidePhase>("entering");
   const [visible, setVisible] = useState(true);
   const doneRef = useRef(false);
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const slide = slides[slideIdx];
   const isPlayer = slide.isPlayer;
@@ -64,36 +70,50 @@ export default function TransformAnimation({
   const glowRgb = isPlayer ? "200,150,42" : "200,60,80";
   const particleColor = isPlayer ? "#d4a017" : "#c83c50";
 
-  const skip = useCallback(() => {
+  const advance = useCallback(() => {
     if (doneRef.current) return;
-    doneRef.current = true;
-    setVisible(false);
-    setTimeout(onDone, 300);
-  }, [onDone]);
-
-  useEffect(() => {
-    setPhase("entering");
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    const after = (ms: number, fn: () => void) =>
-      timers.push(setTimeout(fn, ms));
-
-    after(350, () => setPhase("glowing"));
-    after(900,  () => setPhase("merging"));
-    after(1400, () => setPhase("flashing"));
-    after(1700, () => setPhase("showing-result"));
-    after(3000, () => setPhase("leaving"));
-    after(3400, () => {
-      if (doneRef.current) return;
-      if (slideIdx < slides.length - 1) {
-        setSlideIdx((i) => i + 1);
-      } else {
-        doneRef.current = true;
+    if (phaseRef.current !== "showing-result") {
+      // Skip animation — jump straight to the result
+      timersRef.current.forEach(clearTimeout);
+      timersRef.current = [];
+      phaseRef.current = "showing-result";
+      setPhase("showing-result");
+      return;
+    }
+    // At result — advance to next slide or finish
+    timersRef.current.forEach(clearTimeout);
+    timersRef.current = [];
+    if (slideIdx < slides.length - 1) {
+      setSlideIdx((i) => i + 1);
+    } else {
+      doneRef.current = true;
+      phaseRef.current = "leaving";
+      setPhase("leaving");
+      setTimeout(() => {
         setVisible(false);
         setTimeout(onDone, 300);
-      }
-    });
+      }, 400);
+    }
+  }, [slideIdx, slides.length, onDone]);
 
-    return () => timers.forEach(clearTimeout);
+  useEffect(() => {
+    phaseRef.current = "entering";
+    setPhase("entering");
+    timersRef.current.forEach(clearTimeout);
+    timersRef.current = [];
+
+    const after = (ms: number, fn: () => void) => {
+      const t = setTimeout(fn, ms);
+      timersRef.current.push(t);
+    };
+
+    after(350,  () => { phaseRef.current = "glowing";        setPhase("glowing");        });
+    after(900,  () => { phaseRef.current = "merging";        setPhase("merging");        });
+    after(1400, () => { phaseRef.current = "flashing";       setPhase("flashing");       });
+    after(1700, () => { phaseRef.current = "showing-result"; setPhase("showing-result"); });
+    // No auto-advance — waits for user to tap or press Space
+
+    return () => { timersRef.current.forEach(clearTimeout); timersRef.current = []; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slideIdx]);
 
@@ -101,12 +121,12 @@ export default function TransformAnimation({
     const handler = (e: KeyboardEvent) => {
       if (e.key === " " || e.key === "Enter") {
         e.preventDefault();
-        skip();
+        advance();
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [skip]);
+  }, [advance]);
 
   const entering = phase === "entering";
   const glowing = phase === "glowing" || phase === "merging";
@@ -124,7 +144,7 @@ export default function TransformAnimation({
         transition: "opacity 300ms ease",
         pointerEvents: "all",
       }}
-      onClick={skip}
+      onClick={advance}
     >
       {/* Header */}
       <div
@@ -154,7 +174,7 @@ export default function TransformAnimation({
 
       {/* Cards row — visible until showing-result */}
       {!showingResult && (
-        <div className="flex items-center gap-3 sm:gap-5">
+        <div className="flex items-center gap-6 sm:gap-10">
           {/* Character card */}
           <div
             style={{
@@ -180,7 +200,7 @@ export default function TransformAnimation({
             }}
           >
             <span
-              className="text-2xl sm:text-3xl font-black select-none"
+              className="text-3xl sm:text-4xl font-black select-none"
               style={{ color: `rgba(${glowRgb},0.85)` }}
             >
               +
@@ -252,9 +272,10 @@ export default function TransformAnimation({
           </div>
 
           <div
-            className="text-[10px] sm:text-xs tracking-[0.25em] uppercase"
+            className="text-sm sm:text-base md:text-lg tracking-[0.25em] uppercase font-display font-bold"
             style={{
-              color: `rgba(${glowRgb},0.75)`,
+              color: `rgba(${glowRgb},0.85)`,
+              textShadow: `0 0 20px rgba(${glowRgb},0.6)`,
               animation: "transform-label-in 400ms 300ms ease-out both",
             }}
           >
@@ -263,31 +284,12 @@ export default function TransformAnimation({
         </div>
       )}
 
-      {/* Slide counter dots (if 2 slides) */}
-      {slides.length > 1 && (
-        <div className="flex gap-2 mt-1">
-          {slides.map((_, i) => (
-            <div
-              key={i}
-              className="w-1.5 h-1.5 rounded-full transition-all duration-300"
-              style={{
-                background:
-                  i === slideIdx
-                    ? `rgba(${glowRgb},0.9)`
-                    : "rgba(255,255,255,0.2)",
-                transform: i === slideIdx ? "scale(1.4)" : "scale(1)",
-              }}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Skip hint */}
+      {/* Continue / skip hint */}
       <div
-        className="absolute bottom-6 text-[10px] tracking-[0.2em] uppercase"
-        style={{ color: "rgba(255,255,255,0.25)" }}
+        className="absolute bottom-6 text-[10px] tracking-[0.2em] uppercase transition-opacity duration-300"
+        style={{ color: "rgba(255,255,255,0.35)", opacity: showingResult ? 1 : 0.4 }}
       >
-        Tap to skip
+        {showingResult ? "Tap or Space to continue" : "Tap to skip"}
       </div>
     </div>
   );
@@ -310,44 +312,21 @@ function MiniCard({
 
   return (
     <div
-      className="relative w-28 h-40 sm:w-32 sm:h-44 flex flex-col rounded-lg overflow-hidden border-2 select-none"
+      className="relative w-36 h-[220px] sm:w-44 sm:h-[270px] rounded-lg overflow-hidden border-2 select-none"
       style={{
         borderColor: glowing ? `rgba(${glowRgb},0.9)` : border,
-        background:
-          "linear-gradient(160deg, rgba(15,0,32,0.97), rgba(8,0,18,0.97))",
         boxShadow: glowing
           ? `0 0 28px rgba(${glowRgb},0.6), 0 0 60px rgba(${glowRgb},0.25)`
           : `0 0 12px ${border}`,
         transition: "box-shadow 300ms, border-color 300ms",
       }}
     >
-      {/* Art area */}
-      <div
-        className="flex-1 flex items-center justify-center text-3xl sm:text-4xl"
-        style={{ background: "rgba(0,0,0,0.45)" }}
-      >
-        {card.type === "character"
-          ? "👤"
-          : card.type === "arsenal"
-          ? "⚔️"
-          : "✨"}
-      </div>
-
-      {/* Info */}
-      <div className="px-2 py-1.5 flex flex-col gap-0.5">
-        <div
-          className="text-[9px] font-bold leading-tight truncate uppercase tracking-wide"
-          style={{ color: "var(--text-primary)" }}
-        >
-          {card.name}
-        </div>
-        {(card.type === "character" || card.type === "arsenal") && (
-          <div className="flex gap-2 text-[9px]">
-            <span style={{ color: "#f87171" }}>⚔ {card.attack}</span>
-            <span style={{ color: "#60a5fa" }}>🛡 {card.defense}</span>
-          </div>
-        )}
-      </div>
+      <img
+        src={`/api/cards/render/${encodeURIComponent(card.cardId || card.name)}?${CACHE_BUST}`}
+        alt={card.name}
+        draggable={false}
+        className="w-full h-full object-cover select-none"
+      />
 
       {/* Glow sweep */}
       {glowing && (
@@ -406,62 +385,38 @@ function ResultCard({
   character: BattleCard;
   glowRgb: string;
 }) {
-  const { atkFlame, defFlame } = getFlameTypes(character, card);
   return (
     <div
-      className="relative w-36 h-52 sm:w-44 sm:h-60 flex flex-col rounded-xl overflow-hidden border-2 select-none"
+      className="relative w-64 h-[440px] sm:w-72 sm:h-[495px] md:w-80 md:h-[550px] rounded-2xl overflow-hidden border-3 select-none"
       style={{
         borderColor: `rgba(${glowRgb},1)`,
-        background:
-          "linear-gradient(160deg, rgba(30,5,55,0.98), rgba(10,0,24,0.98))",
-        boxShadow: `0 0 40px rgba(${glowRgb},0.7), 0 0 80px rgba(${glowRgb},0.25), inset 0 0 30px rgba(${glowRgb},0.08)`,
+        boxShadow: `0 0 60px rgba(${glowRgb},0.8), 0 0 120px rgba(${glowRgb},0.4), 0 0 200px rgba(${glowRgb},0.15), inset 0 0 40px rgba(${glowRgb},0.1)`,
       }}
     >
+      <img
+        src={`/api/cards/render/${encodeURIComponent(card.cardId || card.name)}?${CACHE_BUST}`}
+        alt={card.name}
+        draggable={false}
+        className="w-full h-full object-cover select-none"
+      />
+
       {/* Inner glow border shimmer */}
       <div
-        className="absolute inset-0 pointer-events-none rounded-xl"
+        className="absolute inset-0 pointer-events-none rounded-2xl"
         style={{
-          background: `linear-gradient(135deg, rgba(${glowRgb},0.12) 0%, transparent 60%)`,
+          background: `linear-gradient(135deg, rgba(${glowRgb},0.15) 0%, transparent 50%, rgba(${glowRgb},0.08) 100%)`,
+          border: `1px solid rgba(${glowRgb},0.3)`,
         }}
       />
 
-      {/* Art */}
+      {/* Animated outer glow ring */}
       <div
-        className="flex-1 flex items-center justify-center text-5xl sm:text-6xl"
-        style={{ background: "rgba(0,0,0,0.35)" }}
-      >
-        ✨
-      </div>
-
-      {/* Info */}
-      <div className="px-3 py-2 flex flex-col gap-1">
-        <div
-          className="text-[10px] sm:text-xs font-display font-black tracking-widest uppercase"
-          style={{ color: `rgba(${glowRgb},1)`, textShadow: `0 0 8px rgba(${glowRgb},0.6)` }}
-        >
-          {card.name}
-        </div>
-        <div className="flex gap-3 text-xs sm:text-sm font-bold">
-          <span className={atkFlame !== "none" ? `flame-${atkFlame}` : ""} style={atkFlame === "none" ? { color: "#f87171" } : undefined}>
-            ⚔ {card.attack}
-          </span>
-          <span className={defFlame !== "none" ? `flame-${defFlame}` : ""} style={defFlame === "none" ? { color: "#60a5fa" } : undefined}>
-            🛡 {card.defense}
-          </span>
-        </div>
-      </div>
-
-      {/* Combo badge */}
-      <div
-        className="absolute top-1.5 right-1.5 text-[7px] sm:text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider font-display"
+        className="absolute -inset-1 pointer-events-none rounded-2xl"
         style={{
-          background: `rgba(${glowRgb},0.25)`,
-          border: `1px solid rgba(${glowRgb},0.6)`,
-          color: `rgba(${glowRgb},1)`,
+          boxShadow: `0 0 30px rgba(${glowRgb},0.5)`,
+          animation: "transform-glow-pulse 1.5s ease-in-out infinite alternate",
         }}
-      >
-        COMBO
-      </div>
+      />
     </div>
   );
 }

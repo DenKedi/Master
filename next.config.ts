@@ -1,6 +1,16 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  /* ── Images ─────────────────────────────────────── */
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'cdn.master.bleck.it',
+      },
+    ],
+  },
+
   /* ── Performance ────────────────────────────────── */
   reactStrictMode: true,
 

@@ -6,6 +6,7 @@ interface GameOverScreenProps {
   xpReward: number;
   onContinue: () => void;
   isTutorial?: boolean;
+  starterDeckGranted?: boolean;
 }
 
 export default function GameOverScreen({
@@ -14,6 +15,7 @@ export default function GameOverScreen({
   xpReward,
   onContinue,
   isTutorial,
+  starterDeckGranted,
 }: GameOverScreenProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ pointerEvents: "auto" }}>
@@ -71,7 +73,7 @@ export default function GameOverScreen({
         </div>
 
         {/* Rewards */}
-        {xpReward > 0 && (
+        {(xpReward > 0 || starterDeckGranted) && (
           <div
             className="mx-6 mb-4 px-4 py-3 rounded"
             style={{
@@ -79,14 +81,26 @@ export default function GameOverScreen({
               border: "1px solid rgba(200,150,42,0.2)",
             }}
           >
-            <div className="text-[10px] tracking-[0.2em] uppercase mb-1" style={{ color: "var(--gold-dim)" }}>
+            <div className="text-[10px] tracking-[0.2em] uppercase mb-2" style={{ color: "var(--gold-dim)" }}>
               Rewards
             </div>
-            <div className="flex items-center justify-center gap-2">
-              <span className="text-lg">⭐</span>
-              <span className="font-display font-bold text-xl" style={{ color: "var(--gold-bright)" }}>
-                +{xpReward} XP
-              </span>
+            <div className="space-y-2">
+              {xpReward > 0 && (
+                <div className="flex items-center justify-center gap-2">
+                  <span className="text-lg">⭐</span>
+                  <span className="font-display font-bold text-xl" style={{ color: "var(--gold-bright)" }}>
+                    +{xpReward} XP
+                  </span>
+                </div>
+              )}
+              {starterDeckGranted && (
+                <div className="flex items-center justify-center gap-2">
+                  <span className="text-lg">🃏</span>
+                  <span className="font-display font-bold text-base" style={{ color: "#c4a0ff" }}>
+                    Starter Deck — &quot;First Steps&quot;
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         )}

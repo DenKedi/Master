@@ -6,10 +6,12 @@ import CardModel from "@/models/Card";
 import PackModel from "@/models/Pack";
 import TransactionModel from "@/models/Transaction";
 import Link from "next/link";
+import CacheReloadButton from "./CacheReloadButton";
 
 export default async function AdminDashboard() {
   const session = await auth();
   if (!session || (session.user as any).role !== "admin") redirect("/hub");
+  redirect("/admin/cards");
 
   await connectDB();
   const [totalUsers, totalCards, totalPacks, totalTx] = await Promise.all([
@@ -34,7 +36,10 @@ export default async function AdminDashboard() {
 
   return (
     <div>
-      <h1 className="text-3xl font-bold mb-2">Admin Dashboard</h1>
+      <div className="flex items-center justify-between mb-2">
+        <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+        <CacheReloadButton />
+      </div>
       <p className="text-gray-400 mb-10">Overview of your game platform.</p>
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-5">

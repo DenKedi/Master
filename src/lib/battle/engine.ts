@@ -97,6 +97,8 @@ export function getAvailableCombos(
         result: {
           ...recipe.result,
           uid: `combo-${charToCheck.uid}-${ars.uid}`,
+          attack: recipe.result.attack + (recipe.bonus?.attack ?? 0),
+          defense: recipe.result.defense + (recipe.bonus?.defense ?? 0),
         },
       });
     }
@@ -118,6 +120,10 @@ export interface InitOptions {
   comboRecipes?: BattleComboRecipe[];
   /** Skip shuffle (for scripted tutorial) */
   skipShuffle?: boolean;
+  /** Override player starting HP (defaults to STARTING_HP) */
+  playerHp?: number;
+  /** Override opponent starting HP (defaults to STARTING_HP) */
+  opponentHp?: number;
 }
 
 /** Check if hand contains at least one character card */
@@ -196,8 +202,8 @@ export function createInitialState(opts: InitOptions): {
   const player: PlayerState = {
     id: playerId,
     name: opts.playerName ?? 'Player',
-    hp: STARTING_HP,
-    maxHp: STARTING_HP,
+    hp: opts.playerHp ?? STARTING_HP,
+    maxHp: opts.playerHp ?? STARTING_HP,
     deck: playerDeal.deck,
     hand: playerDeal.hand,
     discard: [],
@@ -211,8 +217,8 @@ export function createInitialState(opts: InitOptions): {
   const opponent: PlayerState = {
     id: opponentId,
     name: opts.opponentName ?? 'Opponent',
-    hp: STARTING_HP,
-    maxHp: STARTING_HP,
+    hp: opts.opponentHp ?? STARTING_HP,
+    maxHp: opts.opponentHp ?? STARTING_HP,
     deck: opponentDeal.deck,
     hand: opponentDeal.hand,
     discard: [],
@@ -280,34 +286,30 @@ export function applyAction(
         characterUid: action.cardUid,
         // Reset combo if character changed (combo depends on character)
         comboArsenalUid: null,
+        arsenalConfirmed: false,
+        preArsenalState: undefined,
       };
       const updated = { ...actor, selection: newSelection };
       return { state: updateActor(updated), events: allEvents };
     }
 
-    // ── Select an arsenal card to combo with ─────────────────────
+    // ── Select an arsenal card to combo or equip ────────────────
     case 'SELECT_COMBO': {
       const arsenal = actor.hand.find(c => c.uid === action.arsenalUid);
       if (!arsenal) return { state, events: [], error: 'Arsenal not in hand.' };
 
-      // Determine which character will be active for the combo
+      // Determine which character will be active
       const charForCombo = actor.selection.characterUid
         ? actor.hand.find(c => c.uid === actor.selection.characterUid)
         : actor.active;
 
       if (!charForCombo) {
-        return { state, events: [], error: 'No character to combo with.' };
+        return { state, events: [], error: 'No character to equip arsenal to.' };
       }
 
-      // Validate a recipe exists
-      const recipe = findComboRecipe(
-        state.comboRecipes,
-        charForCombo.name,
-        arsenal.name,
-      );
-      if (!recipe) {
-        return { state, events: [], error: 'No combo recipe for this pair.' };
-      }
+      // No recipe check here — resolveCombo handles both cases:
+      // - Recipe exists → creates combo card (arsenal stats NOT added to result)
+      // - No recipe → arsenal is equipped as a one-turn stat boost
 
       const newSelection: TurnSelection = {
         ...actor.selection,
@@ -392,6 +394,136 @@ export function applyAction(
       return { state: updateActor(updated), events: allEvents };
     }
 
+    // ── Confirm arsenal use (combo/equip resolves immediately) ──
+    case 'CONFIRM_ARSENAL': {
+      const arsenalUid = actor.selection.comboArsenalUid;
+      if (!arsenalUid) return { state, events: [], error: 'No arsenal staged.' };
+
+      const arsenal = actor.hand.find(c => c.uid === arsenalUid);
+      if (!arsenal) return { state, events: [], error: 'Arsenal not in hand.' };
+
+      const activeChar = actor.selection.characterUid
+        ? actor.hand.find(c => c.uid === actor.selection.characterUid)
+        : actor.active;
+      if (!activeChar) return { state, events: [], error: 'No active character.' };
+
+      // Save snapshot for undo
+      const snapshot = {
+        active: actor.active,
+        activeArsenal: actor.activeArsenal,
+        preComboCharacter: actor.preComboCharacter,
+        arsenalCard: arsenal,
+      };
+
+      // If a new character is staged, place it first (same as resolveCharacterPlay)
+      let updatedActor = { ...actor };
+      if (actor.selection.characterUid) {
+        const charCard = actor.hand.find(c => c.uid === actor.selection.characterUid);
+        if (charCard) {
+          const oldActive = updatedActor.active;
+          const newHand = updatedActor.hand.filter(c => c.uid !== charCard.uid);
+          const newDiscard = [
+            ...updatedActor.discard,
+            ...(oldActive ? [oldActive] : []),
+            ...(updatedActor.activeArsenal ? [updatedActor.activeArsenal] : []),
+            ...(updatedActor.preComboCharacter ? [updatedActor.preComboCharacter] : []),
+          ];
+          updatedActor = {
+            ...updatedActor,
+            hand: newHand,
+            discard: newDiscard,
+            active: charCard,
+            activeArsenal: null,
+            preComboCharacter: null,
+          };
+          allEvents.push({ type: 'CHARACTER_PLACED', playerId: pid, card: charCard, oldActive });
+        }
+      }
+
+      const recipe = findComboRecipe(
+        state.comboRecipes,
+        updatedActor.active!.name,
+        arsenal.name,
+      );
+
+      if (recipe) {
+        // ── Recipe exists: create combo card ──
+        const comboCard: BattleCard = {
+          ...recipe.result,
+          uid: `combo-${updatedActor.active!.uid}-${arsenal.uid}-t${state.turn}`,
+          attack: recipe.result.attack + (recipe.bonus?.attack ?? 0),
+          defense: recipe.result.defense + (recipe.bonus?.defense ?? 0),
+          comboSource: {
+            characterName: updatedActor.active!.name,
+            arsenalName: arsenal.name,
+          },
+        };
+
+        const oldActive = updatedActor.active!;
+        const newHand = updatedActor.hand.filter(c => c.uid !== arsenalUid);
+        const newDiscard = [...updatedActor.discard, arsenal];
+
+        updatedActor = {
+          ...updatedActor,
+          hand: newHand,
+          discard: newDiscard,
+          active: comboCard,
+          preComboCharacter: oldActive,
+          selection: {
+            ...updatedActor.selection,
+            arsenalConfirmed: true,
+            preArsenalState: snapshot,
+            // Clear characterUid since character is now placed
+            characterUid: null,
+          },
+        };
+
+        allEvents.push({
+          type: 'COMBO_RESOLVED',
+          playerId: pid,
+          character: oldActive,
+          arsenal,
+          result: comboCard,
+        });
+
+        // Resolve on-combo effects
+        const newState: GameState = isPlayer
+          ? { ...state, player: updatedActor }
+          : { ...state, opponent: updatedActor };
+        const effectResult = resolveEffects(newState, comboCard, 'on-combo', pid);
+        return {
+          state: effectResult.state,
+          events: [...allEvents, ...effectResult.events],
+        };
+      } else {
+        // ── No recipe: equip arsenal as one-turn stat boost ──
+        const newHand = updatedActor.hand.filter(c => c.uid !== arsenalUid);
+        updatedActor = {
+          ...updatedActor,
+          hand: newHand,
+          activeArsenal: arsenal,
+          selection: {
+            ...updatedActor.selection,
+            arsenalConfirmed: true,
+            preArsenalState: snapshot,
+            characterUid: null,
+          },
+        };
+
+        allEvents.push({
+          type: 'ARSENAL_EQUIPPED',
+          playerId: pid,
+          arsenal,
+          character: updatedActor.active!,
+        });
+
+        const newState = isPlayer
+          ? { ...state, player: updatedActor }
+          : { ...state, opponent: updatedActor };
+        return { state: newState, events: allEvents };
+      }
+    }
+
     // ── Confirm selection ────────────────────────────────────────
     case 'CONFIRM_SELECTION': {
       const newSelection: TurnSelection = {
@@ -418,9 +550,32 @@ export function applyAction(
 
     // ── Undo (reset) selection ───────────────────────────────────
     case 'UNDO_SELECTION': {
-      const updated = { ...actor, selection: emptySelection() };
+      let restored = { ...actor };
+
+      // If arsenal was confirmed, revert the combo/equip
+      if (actor.selection.arsenalConfirmed && actor.selection.preArsenalState) {
+        const snap = actor.selection.preArsenalState;
+        restored = {
+          ...restored,
+          active: snap.active,
+          activeArsenal: snap.activeArsenal,
+          preComboCharacter: snap.preComboCharacter,
+          // Restore arsenal card to hand
+          hand: [...restored.hand, snap.arsenalCard],
+          // Remove arsenal card from discard (it may have been placed there for combo)
+          discard: restored.discard.filter(c => c.uid !== snap.arsenalCard.uid),
+        };
+
+        // If a character was placed from hand during CONFIRM_ARSENAL, restore it too
+        if (actor.selection.characterUid === null && snap.active !== null) {
+          // The old character was placed and the new active was set by the confirm.
+          // The snapshot captured the state before — so restoring snap.active handles it.
+        }
+      }
+
+      restored = { ...restored, selection: emptySelection() };
       allEvents.push({ type: 'SELECTION_RESET', playerId: pid });
-      return { state: updateActor(updated), events: allEvents };
+      return { state: updateActor(restored), events: allEvents };
     }
 
     default:
@@ -647,7 +802,7 @@ function resolveTrickPlays(
           type: 'EFFECT_TRIGGERED',
           card,
           effect,
-          description: effect.description,
+          description: result.description ?? effect.description,
         },
         ...result.events,
       );
@@ -670,6 +825,9 @@ function resolveCombo(
   const isPlayer = playerId === state.player.id;
   const actor = isPlayer ? state.player : state.opponent;
   const arsenalUid = actor.selection.comboArsenalUid;
+
+  // If arsenal was already confirmed during select phase, skip — already applied
+  if (actor.selection.arsenalConfirmed) return state;
 
   if (!arsenalUid) return state;
   if (!actor.active) return state;
@@ -706,6 +864,8 @@ function resolveCombo(
   const comboCard: BattleCard = {
     ...recipe.result,
     uid: `combo-${actor.active.uid}-${arsenal.uid}-t${state.turn}`,
+    attack: recipe.result.attack + (recipe.bonus?.attack ?? 0),
+    defense: recipe.result.defense + (recipe.bonus?.defense ?? 0),
     comboSource: {
       characterName: actor.active.name,
       arsenalName: arsenal.name,

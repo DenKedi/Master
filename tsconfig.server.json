@@ -1,12 +1,18 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "module": "ESNext",
+    "module": "CommonJS",
+    "moduleResolution": "node",
     "target": "ES2019",
     "outDir": "dist",
     "noEmit": false,
-    "paths": {}
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
-  "include": ["server.ts", "src/lib/socket.ts"],
+  "ts-node": {
+    "require": ["tsconfig-paths/register"]
+  },
+  "include": ["server.ts", "src/**/*.ts"],
   "exclude": ["node_modules"]
 }

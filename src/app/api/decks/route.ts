@@ -4,20 +4,25 @@ import DeckModel from '@/models/Deck';
 import CollectionModel from '@/models/Collection';
 import { apiOk, apiError } from '@/lib/utils';
 import { auth } from '@/lib/nextauth';
-import { DECK_SIZE } from '@/lib/battle/constants';
+import { MIN_DECK_SIZE, MAX_DECK_SIZE } from '@/lib/battle/constants';
 
 // ─── GET /api/decks — List all decks for the current user ────────────────────
 export async function GET() {
-  const [session] = await Promise.all([auth(), connectDB()]);
-  if (!session) return apiError('Unauthorized', 401);
+  try {
+    const [session] = await Promise.all([auth(), connectDB()]);
+    if (!session) return apiError('Unauthorized', 401);
 
-  const userId = (session.user as any).id;
-  const decks = await DeckModel.find({ userId })
-    .populate('cards')
-    .sort({ isActive: -1, updatedAt: -1 })
-    .lean();
+    const userId = (session.user as any).id;
+    const decks = await DeckModel.find({ userId })
+      .populate('cards')
+      .sort({ isActive: -1, updatedAt: -1 })
+      .lean();
 
-  return apiOk(decks);
+    return apiOk(decks);
+  } catch (err) {
+    console.error('[GET /api/decks]', err);
+    return apiError('Internal server error', 500);
+  }
 }
 
 // ─── POST /api/decks — Create a new deck ─────────────────────────────────────
@@ -36,8 +41,8 @@ export async function POST(req: NextRequest) {
   // Validate cards array
   if (!cards || !Array.isArray(cards))
     return apiError('Cards array is required');
-  if (cards.length !== DECK_SIZE) {
-    return apiError(`A deck must have exactly ${DECK_SIZE} cards`);
+  if (cards.length < MIN_DECK_SIZE || cards.length > MAX_DECK_SIZE) {
+    return apiError(`A deck must have between ${MIN_DECK_SIZE} and ${MAX_DECK_SIZE} cards`);
   }
 
   // Verify the user owns all these cards with sufficient quantities

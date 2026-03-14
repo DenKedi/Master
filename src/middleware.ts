@@ -14,6 +14,7 @@ export default auth(req => {
   const isPublic =
     publicPaths.includes(pathname) ||
     pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/api/cards/render/') ||
     // POST /api/users is the public registration endpoint
     // (GET /api/users is admin-only but guards itself in the route handler)
     pathname === '/api/users';

@@ -1,7 +1,12 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
+import Image from "next/image";
+
+import FlippableCard from "@/components/ui/FlippableCard";
 import type { CardType, CardRarity, CharacterType } from "@/types";
+import { RENDER_V } from "@/lib/renderVersion";
+import { RARITY_COLORS } from "@/lib/rarityColors";
 
 /* ═══════════════════════════════════════════════════════════════════════════
  *  DeckBuilder — Build / edit a 20-card deck from your collection.
@@ -15,16 +20,15 @@ import type { CardType, CardRarity, CharacterType } from "@/types";
 
 export interface CollectionCard {
   _id: string;
+  cardId: string;
   name: string;
   description: string;
   rarity: CardRarity;
   type: CardType;
-  tier: "base" | "advanced";
   imageUrl: string;
   attack: number;
   defense: number;
   effect?: string;
-  cost: number;
   characterType?: CharacterType;
 }
 
@@ -46,34 +50,37 @@ interface DeckBuilderProps {
   collection: CollectionEntry[];
   /** Existing deck to edit (null = create new) */
   deck: DeckData | null;
-  /** Required deck size */
+  /** Maximum deck size */
   deckSize: number;
+  /** Minimum deck size */
+  minDeckSize?: number;
   onSave: (name: string, cardIds: string[], isActive: boolean) => Promise<void>;
   onCancel: () => void;
+  onDelete?: () => Promise<void>;
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-const TYPE_ICONS: Record<string, string> = {
-  character: "👤",
-  arsenal: "⚔️",
-  destination: "🏟️",
-  trick: "✨",
+const TYPE_ICONS: Record<string, React.ReactNode> = {
+  character: <Image src="/icons/types/character.png" alt="Character" width={16} height={16} className="inline-block" />,
+  arsenal: <Image src="/icons/types/arsenal.png" alt="Arsenal" width={16} height={16} className="inline-block" />,
+  destination: <Image src="/icons/types/destination.png" alt="Destination" width={16} height={16} className="inline-block" />,
+  trick: <Image src="/icons/types/trick.png" alt="Trick" width={16} height={16} className="inline-block" />,
 };
 
-const CHARACTER_TYPE_ICONS: Record<string, string> = {
-  human: "🧑",
-  goblin: "👺",
-  beast: "🐺",
-  demon: "😈",
+const CHARACTER_TYPE_ICONS: Record<string, React.ReactNode> = {
+  human: <Image src="/icons/character-types/human.png" alt="Human" width={16} height={16} className="inline-block" />,
+  goblin: <Image src="/icons/character-types/goblin.png" alt="Goblin" width={16} height={16} className="inline-block" />,
+  beast: <Image src="/icons/character-types/beast.png" alt="Beast" width={16} height={16} className="inline-block" />,
+  underworld: <Image src="/icons/character-types/underworld.png" alt="Underworld" width={16} height={16} className="inline-block" />,
 };
 
-const RARITY_COLORS: Record<string, string> = {
-  normal: "#9ca3af",
-  nice: "#60a5fa",
-  special: "#f87171",
-  uiiiii: "#4ade80",
-  unknown: "#a855f7",
+const RARITY_ORDER: Record<string, number> = {
+  unknown: 5,
+  uiiiii: 4,
+  special: 3,
+  nice: 2,
+  normal: 1,
 };
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -82,8 +89,10 @@ export default function DeckBuilder({
   collection,
   deck,
   deckSize,
+  minDeckSize = deckSize,
   onSave,
   onCancel,
+  onDelete,
 }: DeckBuilderProps) {
   const [deckName, setDeckName] = useState(deck?.name ?? "");
   const [deckCards, setDeckCards] = useState<CollectionCard[]>(deck?.cards ?? []);
@@ -91,7 +100,21 @@ export default function DeckBuilder({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<CardType | "all">("all");
+  const [rarityFilter, setRarityFilter] = useState<CardRarity | "all">("all");
+  const [characterTypeFilter, setCharacterTypeFilter] = useState<CharacterType | "all">("all");
   const [search, setSearch] = useState("");
+
+  // Preview state
+  const [previewCard, setPreviewCard] = useState<CollectionCard | null>(null);
+  const [previewSource, setPreviewSource] = useState<"collection" | "deck">("collection");
+  const [previewDeckIdx, setPreviewDeckIdx] = useState(-1);
+  const [mobilePreview, setMobilePreview] = useState(false);
+  const [mobileIdx, setMobileIdx] = useState(0);
+  const [hasHover, setHasHover] = useState(true);
+
+  useEffect(() => {
+    setHasHover(window.matchMedia("(hover: hover)").matches);
+  }, []);
 
   // Count how many of each card are currently in the deck
   const deckCounts = useMemo(() => {
@@ -110,6 +133,8 @@ export default function DeckBuilder({
         const inDeck = deckCounts.get(e.cardId._id) ?? 0;
         if (inDeck >= e.quantity) return false;
         if (typeFilter !== "all" && e.cardId.type !== typeFilter) return false;
+        if (rarityFilter !== "all" && e.cardId.rarity !== rarityFilter) return false;
+        if (characterTypeFilter !== "all" && e.cardId.characterType !== characterTypeFilter) return false;
         if (search) {
           const q = search.toLowerCase();
           return (
@@ -122,8 +147,16 @@ export default function DeckBuilder({
       .map((e) => ({
         card: e.cardId,
         remaining: e.quantity - (deckCounts.get(e.cardId._id) ?? 0),
-      }));
-  }, [collection, deckCounts, typeFilter, search]);
+      }))
+      .sort((a, b) => {
+        const rarityA = RARITY_ORDER[a.card.rarity || "normal"] || 0;
+        const rarityB = RARITY_ORDER[b.card.rarity || "normal"] || 0;
+        if (rarityA !== rarityB) {
+          return rarityB - rarityA;
+        }
+        return a.card.name.localeCompare(b.card.name);
+      });
+  }, [collection, deckCounts, typeFilter, rarityFilter, characterTypeFilter, search]);
 
   // Deck composition stats
   const stats = useMemo(() => {
@@ -135,7 +168,7 @@ export default function DeckBuilder({
   }, [deckCards]);
 
   const isFull = deckCards.length >= deckSize;
-  const isValid = deckCards.length === deckSize && deckName.trim().length > 0;
+  const isValid = deckCards.length >= minDeckSize && deckCards.length <= deckSize && deckName.trim().length > 0;
 
   const addCard = useCallback(
     (card: CollectionCard) => {
@@ -150,6 +183,55 @@ export default function DeckBuilder({
     setDeckCards((prev) => prev.filter((_, i) => i !== index));
     setError(null);
   }, []);
+
+  const handleCollectionClick = useCallback(
+    (card: CollectionCard, idx: number) => {
+      if (!hasHover) {
+        setPreviewCard(card);
+        setPreviewSource("collection");
+        setMobileIdx(idx);
+        setMobilePreview(true);
+      } else {
+        addCard(card);
+      }
+    },
+    [hasHover, addCard],
+  );
+
+  const handleDeckClick = useCallback(
+    (card: CollectionCard, idx: number) => {
+      if (!hasHover) {
+        setPreviewCard(card);
+        setPreviewSource("deck");
+        setPreviewDeckIdx(idx);
+        setMobileIdx(idx);
+        setMobilePreview(true);
+      } else {
+        removeCard(idx);
+      }
+    },
+    [hasHover, removeCard],
+  );
+
+  const cycleMobilePreview = useCallback(
+    (dir: -1 | 1) => {
+      if (previewSource === "collection") {
+        const len = availableCards.length;
+        if (len === 0) return;
+        const next = (mobileIdx + dir + len) % len;
+        setMobileIdx(next);
+        setPreviewCard(availableCards[next].card);
+      } else {
+        const len = deckCards.length;
+        if (len === 0) return;
+        const next = (mobileIdx + dir + len) % len;
+        setMobileIdx(next);
+        setPreviewDeckIdx(next);
+        setPreviewCard(deckCards[next]);
+      }
+    },
+    [previewSource, availableCards, deckCards, mobileIdx],
+  );
 
   const handleSave = async () => {
     if (!isValid) return;
@@ -203,6 +285,15 @@ export default function DeckBuilder({
             />
             Active Deck
           </label>
+          {deck && onDelete && (
+            <button
+              onClick={onDelete}
+              className="btn-game px-3 py-1.5 text-xs"
+              style={{ color: "var(--crimson)" }}
+            >
+              🗑️ Delete
+            </button>
+          )}
           <button
             onClick={onCancel}
             className="btn-game btn-game-arcane px-3 py-1.5 text-xs"
@@ -238,7 +329,7 @@ export default function DeckBuilder({
       >
         <span
           style={{
-            color: deckCards.length === deckSize ? "#4ade80" : "var(--gold)",
+            color: deckCards.length >= minDeckSize ? "#4ade80" : "var(--gold)",
           }}
         >
           {deckCards.length}/{deckSize} Cards
@@ -263,41 +354,108 @@ export default function DeckBuilder({
         </div>
       </div>
 
-      {/* ── Main Content: Collection (left) + Deck (right) ── */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-4 min-h-0 overflow-hidden">
+      {/* ── Main Content: Collection | Preview | Deck ── */}
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_240px_280px] gap-4 min-h-0 overflow-hidden">
         {/* Left: Available Cards */}
         <div className="flex flex-col gap-2 min-h-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span
-              className="text-[10px] font-bold tracking-widest uppercase"
-              style={{ color: "var(--text-muted)" }}
-            >
-              Collection
-            </span>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search…"
-              className="input-game text-xs py-1 px-2"
-              style={{ maxWidth: 180 }}
-            />
-            {(["all", "character", "arsenal", "destination", "trick"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setTypeFilter(t)}
-                className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-all"
-                style={{
-                  color: typeFilter === t ? "#fff" : "var(--text-muted)",
-                  background: typeFilter === t ? "rgba(200,150,42,0.15)" : "transparent",
-                  border: `1px solid ${typeFilter === t ? "var(--border-gold)" : "rgba(255,255,255,0.05)"}`,
-                }}
+          <div className="flex flex-col gap-1.5">
+            {/* Search + Type row */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span
+                className="text-[10px] font-bold tracking-widest uppercase"
+                style={{ color: "var(--text-muted)" }}
               >
-                {t === "all" ? "All" : `${TYPE_ICONS[t]} ${t}`}
-              </button>
-            ))}
+                Collection
+              </span>
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search…"
+                className="input-game text-xs py-1 px-2"
+                style={{ maxWidth: 180 }}
+              />
+              {(["all", "character", "arsenal", "destination", "trick"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => {
+                    setTypeFilter(t);
+                    if (t !== "all" && t !== "character") setCharacterTypeFilter("all");
+                  }}
+                  className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-all"
+                  style={{
+                    color: typeFilter === t ? "#fff" : "var(--text-muted)",
+                    background: typeFilter === t ? "rgba(200,150,42,0.15)" : "transparent",
+                    border: `1px solid ${typeFilter === t ? "var(--border-gold)" : "rgba(255,255,255,0.05)"}`,
+                  }}
+                >
+                  {t === "all" ? "All" : <>{TYPE_ICONS[t]} {t}</>}
+                </button>
+              ))}
+            </div>
+
+            {/* Rarity row */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span
+                className="text-[10px] font-bold tracking-widest uppercase mr-0.5"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Rarity
+              </span>
+              {(["all", "normal", "nice", "special", "uiiiii", "unknown"] as const).map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setRarityFilter(r)}
+                  className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider transition-all"
+                  style={{
+                    color: rarityFilter === r ? "#fff" : RARITY_COLORS[r],
+                    background: rarityFilter === r ? `${RARITY_COLORS[r]}22` : "transparent",
+                    border: `1px solid ${rarityFilter === r ? RARITY_COLORS[r] : "rgba(255,255,255,0.05)"}`,
+                  }}
+                >
+                  {r === "all" ? "All" : r === "unknown" ? "?" : r}
+                </button>
+              ))}
+            </div>
+
+            {/* Character type row (only when type is all or character) */}
+            {(typeFilter === "all" || typeFilter === "character") && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span
+                  className="text-[10px] font-bold tracking-widest uppercase mr-0.5"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Species
+                </span>
+                <button
+                  onClick={() => setCharacterTypeFilter("all")}
+                  className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider transition-all"
+                  style={{
+                    color: characterTypeFilter === "all" ? "#fff" : "var(--text-muted)",
+                    background: characterTypeFilter === "all" ? "rgba(200,150,42,0.15)" : "transparent",
+                    border: `1px solid ${characterTypeFilter === "all" ? "var(--border-gold)" : "rgba(255,255,255,0.05)"}`,
+                  }}
+                >
+                  All
+                </button>
+                {(["human", "goblin", "beast", "underworld"] as const).map((ct) => (
+                  <button
+                    key={ct}
+                    onClick={() => setCharacterTypeFilter(ct)}
+                    className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider transition-all"
+                    style={{
+                      color: characterTypeFilter === ct ? "#fff" : "var(--text-muted)",
+                      background: characterTypeFilter === ct ? "rgba(200,150,42,0.15)" : "transparent",
+                      border: `1px solid ${characterTypeFilter === ct ? "var(--border-gold)" : "rgba(255,255,255,0.05)"}`,
+                    }}
+                  >
+                    {CHARACTER_TYPE_ICONS[ct]} {ct}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div className="flex-1 overflow-y-auto pr-1 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 content-start">
+          <div className="flex-1 overflow-y-auto pr-1 grid grid-cols-3 sm:grid-cols-4 gap-2 content-start">
             {availableCards.length === 0 ? (
               <div
                 className="col-span-full text-center py-8 text-sm"
@@ -308,50 +466,144 @@ export default function DeckBuilder({
                   : "No matching cards available"}
               </div>
             ) : (
-              availableCards.map(({ card, remaining }) => (
+              availableCards.map(({ card, remaining }, idx) => (
                 <button
                   key={card._id}
-                  onClick={() => addCard(card)}
-                  disabled={isFull}
-                  className={`relative flex flex-col border rounded text-left transition-all duration-150 ${
-                    isFull ? "opacity-40 cursor-not-allowed" : "card-lift cursor-pointer"
+                  onClick={() => handleCollectionClick(card, idx)}
+                  onMouseEnter={() => { setPreviewCard(card); setPreviewSource("collection"); }}
+                  disabled={isFull && hasHover}
+                  className={`relative rounded-lg overflow-hidden border-2 transition-all duration-150 ${
+                    isFull && hasHover ? "opacity-40 cursor-not-allowed" : "card-lift cursor-pointer"
                   }`}
                   style={{
-                    background: "linear-gradient(160deg, rgba(15,0,32,0.95), rgba(8,0,18,0.95))",
                     borderColor: RARITY_COLORS[card.rarity] ?? "var(--border-gold)",
                   }}
                 >
                   {remaining > 1 && (
                     <span
-                      className="absolute top-1 right-1 z-10 text-[10px] font-bold px-1 py-0.5 rounded"
-                      style={{ background: "var(--arcane)", color: "#e0ccff" }}
+                      className="absolute top-1 right-1 z-10 text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                      style={{ background: "rgba(0,0,0,0.7)", color: RARITY_COLORS[card.rarity], border: `1px solid ${RARITY_COLORS[card.rarity]}44` }}
                     >
-                      x{remaining}
+                      ×{remaining}
                     </span>
                   )}
-                  <div
-                    className="w-full aspect-[3/2] flex items-center justify-center text-3xl"
-                    style={{ background: "rgba(0,0,0,0.3)" }}
-                  >
-                    {TYPE_ICONS[card.type]}
-                  </div>
-                  <div className="p-2">
-                    <div
-                      className="text-[10px] font-bold truncate"
-                      style={{ color: "var(--text-primary)" }}
-                    >
-                      {card.name}
+                  {card.type === "destination" ? (
+                    <div className="relative w-full overflow-hidden" style={{ aspectRatio: "512/880" }}>
+                      <img
+                        src={`/api/cards/render/${encodeURIComponent(card.cardId)}?v=${RENDER_V}`}
+                        alt={card.name}
+                        loading="lazy"
+                        draggable={false}
+                        className="absolute top-1/2 left-1/2 object-contain"
+                        onLoad={(e) => { (e.target as HTMLElement).style.opacity = '1'; }}
+                        style={{
+                          width: "171.875%", // 880/512 for full cover, or just wait... object-contain? 
+                          // let's just use the same strategy
+                          height: "auto",
+                          transform: "translate(-50%, -50%) rotate(90deg)",
+                          opacity: 0,
+                          transition: 'opacity 0.3s ease',
+                          maxWidth: "none"
+                        }}
+                      />
                     </div>
-                    <div className="flex gap-2 text-[10px] mt-0.5">
-                      <span style={{ color: "#f87171" }}>⚔{card.attack}</span>
-                      <span style={{ color: "#60a5fa" }}>🛡{card.defense}</span>
-                      {card.characterType && (
-                        <span style={{ color: "var(--text-muted)" }}>{CHARACTER_TYPE_ICONS[card.characterType] ?? ''}</span>
-                      )}
-                    </div>
-                  </div>
+                  ) : (
+                    <img
+                      src={`/api/cards/render/${encodeURIComponent(card.cardId)}?v=${RENDER_V}`}
+                      alt={card.name}
+                      loading="lazy"
+                      draggable={false}
+                      className="w-full aspect-[512/880] object-contain"
+                      onLoad={(e) => { (e.target as HTMLElement).style.opacity = '1'; }}
+                      style={{ opacity: 0, transition: 'opacity 0.3s ease' }}
+                    />
+                  )}
                 </button>
               ))
+            )}
+          </div>
+        </div>
+
+        {/* Center: Preview Panel (desktop only) */}
+        <div className="hidden lg:flex flex-col">
+          <div
+            className="sticky top-0 rounded-lg p-3 flex flex-col items-center gap-3"
+            style={{
+              background: "linear-gradient(180deg, rgba(15,0,32,0.8), rgba(8,0,18,0.9))",
+              border: "1px solid rgba(200,150,42,0.15)",
+            }}
+          >
+            <div
+              className="text-[10px] font-bold tracking-widest uppercase w-full"
+              style={{ color: "var(--gold)" }}
+            >
+              ✦ Card Preview
+            </div>
+            {previewCard ? (
+              <>
+                <div className="w-full">
+                  <FlippableCard
+                    key={previewCard._id}
+                    frontSrc={`/api/cards/render/${encodeURIComponent(previewCard.cardId)}?v=${RENDER_V}`}
+                    backSrc="/card-back.webp"
+                    name={previewCard.name}
+                    rarity={previewCard.rarity}
+                    rarityColor={RARITY_COLORS[previewCard.rarity] ?? "var(--border-gold)"}
+                    cardType={previewCard.type as any}
+                  />
+                </div>
+                <div className="w-full text-center space-y-1 mt-2">
+                  <div className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
+                    {previewCard.name}
+                  </div>
+                  <div className="flex items-center justify-center gap-3 text-xs">
+                    <span style={{ color: "#f87171" }}>⚔ {previewCard.attack}</span>
+                    <span style={{ color: "#60a5fa" }}>🛡 {previewCard.defense}</span>
+                  </div>
+                  <div className="flex items-center justify-center gap-2 text-[10px]">
+                    <span className="uppercase font-bold" style={{ color: RARITY_COLORS[previewCard.rarity] }}>
+                      {previewCard.rarity}
+                    </span>
+                    <span style={{ color: "var(--text-muted)" }}>•</span>
+                    <span style={{ color: "var(--text-muted)" }}>
+                      {TYPE_ICONS[previewCard.type]} {previewCard.type}
+                    </span>
+                  </div>
+                  {previewCard.effect && (
+                    <div
+                      className="text-[10px] px-2 py-1 rounded"
+                      style={{ color: "var(--text-muted)", background: "rgba(0,0,0,0.3)" }}
+                    >
+                      {previewCard.effect}
+                    </div>
+                  )}
+                </div>
+                {previewSource === "collection" ? (
+                  <button
+                    onClick={() => addCard(previewCard)}
+                    disabled={isFull}
+                    className="btn-game btn-game-crimson w-full py-1.5 text-xs"
+                  >
+                    {isFull ? "Deck Full" : "+ Add to Deck"}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => removeCard(previewDeckIdx)}
+                    className="btn-game btn-game-arcane w-full py-1.5 text-xs"
+                  >
+                    ✕ Remove
+                  </button>
+                )}
+              </>
+            ) : (
+              <div
+                className="w-full aspect-[512/880] rounded flex items-center justify-center"
+                style={{ border: "2px dashed rgba(200,150,42,0.15)" }}
+              >
+                <span className="text-xs text-center px-4" style={{ color: "var(--text-muted)" }}>
+                  Hover a card<br />to inspect
+                </span>
+              </div>
             )}
           </div>
         </div>
@@ -371,56 +623,57 @@ export default function DeckBuilder({
             ✦ Deck ({deckCards.length}/{deckSize})
           </div>
 
-          <div className="flex-1 overflow-y-auto space-y-1">
+          <div className="flex-1 overflow-y-auto grid grid-cols-3 sm:grid-cols-4 gap-1.5 content-start">
             {deckCards.length === 0 ? (
               <div
-                className="text-center py-8 text-sm"
+                className="col-span-full text-center py-8 text-sm"
                 style={{ color: "var(--text-muted)" }}
               >
-                Click cards on the left to add them
+                Click cards to add them
               </div>
             ) : (
               deckCards.map((card, index) => (
                 <button
                   key={`${card._id}-${index}`}
-                  onClick={() => removeCard(index)}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left transition-all duration-150 hover:bg-red-500/10 group"
+                  onClick={() => handleDeckClick(card, index)}
+                  onMouseEnter={() => { setPreviewCard(card); setPreviewSource("deck"); setPreviewDeckIdx(index); }}
+                  className="relative rounded overflow-hidden border transition-all duration-150 hover:border-red-500/50 group cursor-pointer"
                   style={{
-                    background: "rgba(0,0,0,0.2)",
-                    border: "1px solid rgba(255,255,255,0.04)",
+                    borderColor: (RARITY_COLORS[card.rarity] ?? "rgba(200,150,42,0.15)") + "66",
                   }}
                 >
-                  <span className="text-sm flex-shrink-0">
-                    {TYPE_ICONS[card.type]}
-                  </span>
-                  <span
-                    className="text-[11px] font-bold truncate flex-1"
-                    style={{ color: "var(--text-primary)" }}
-                  >
-                    {card.name}
-                  </span>
-                  {card.characterType && (
-                    <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-                      {CHARACTER_TYPE_ICONS[card.characterType] ?? ''}
-                    </span>
+                  {card.type === "destination" ? (
+                    <div className="relative w-full overflow-hidden" style={{ aspectRatio: "512/880" }}>
+                      <img
+                        src={`/api/cards/render/${encodeURIComponent(card.cardId)}`}
+                        alt={card.name}
+                        loading="lazy"
+                        draggable={false}
+                        className="absolute top-1/2 left-1/2 object-contain"
+                        onLoad={(e) => { (e.target as HTMLElement).style.opacity = '1'; }}
+                        style={{
+                          width: "171.875%",
+                          height: "auto",
+                          transform: "translate(-50%, -50%) rotate(90deg)",
+                          opacity: 0,
+                          transition: 'opacity 0.3s ease',
+                          maxWidth: "none"
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <img
+                      src={`/api/cards/render/${encodeURIComponent(card.cardId)}`}
+                      alt={card.name}
+                      loading="lazy"
+                      draggable={false}
+                      className="w-full aspect-[512/880] object-contain"
+                      onLoad={(e) => { (e.target as HTMLElement).style.opacity = '1'; }}
+                      style={{ opacity: 0, transition: 'opacity 0.3s ease' }}
+                    />
                   )}
-                  <span className="text-[10px]" style={{ color: "#f87171" }}>
-                    ⚔{card.attack}
-                  </span>
-                  <span className="text-[10px]" style={{ color: "#60a5fa" }}>
-                    🛡{card.defense}
-                  </span>
-                  <span
-                    className="text-[10px] font-bold capitalize"
-                    style={{ color: RARITY_COLORS[card.rarity] }}
-                  >
-                    {card.rarity === "unknown" ? "?" : card.rarity}
-                  </span>
-                  <span
-                    className="text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
-                    style={{ color: "#ef4444" }}
-                  >
-                    ✕
+                  <span className="absolute inset-0 flex items-center justify-center bg-red-900/0 group-hover:bg-red-900/40 transition-all">
+                    <span className="text-white text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity">✕</span>
                   </span>
                 </button>
               ))
@@ -435,6 +688,97 @@ export default function DeckBuilder({
           )}
         </div>
       </div>
+
+      {/* Mobile Preview Modal */}
+      {mobilePreview && previewCard && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-6"
+          style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)" }}
+          onClick={() => setMobilePreview(false)}
+        >
+          <div
+            className="relative flex flex-col items-center gap-4 w-full max-w-xs"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setMobilePreview(false)}
+              className="absolute -top-2 -right-2 z-10 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
+              style={{ background: "rgba(0,0,0,0.8)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff" }}
+            >
+              ✕
+            </button>
+            <div className="flex items-center gap-3 w-full">
+              <button
+                onClick={() => cycleMobilePreview(-1)}
+                className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold"
+                style={{ background: "rgba(255,255,255,0.1)", color: "#fff", border: "1px solid rgba(255,255,255,0.15)" }}
+              >
+                ‹
+              </button>
+              <div className="flex-1">
+                <FlippableCard
+                  key={previewCard._id + mobileIdx}
+                  frontSrc={`/api/cards/render/${encodeURIComponent(previewCard.cardId)}?v=${RENDER_V}`}
+                  backSrc="/card-back.webp"
+                  name={previewCard.name}
+                  rarity={previewCard.rarity}
+                  rarityColor={RARITY_COLORS[previewCard.rarity] ?? "var(--border-gold)"}
+                  cardType={previewCard.type as any}
+                />
+              </div>
+              <button
+                onClick={() => cycleMobilePreview(1)}
+                className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold"
+                style={{ background: "rgba(255,255,255,0.1)", color: "#fff", border: "1px solid rgba(255,255,255,0.15)" }}
+              >
+                ›
+              </button>
+            </div>
+            <div className="text-center space-y-1 w-full">
+              <div className="text-base font-bold" style={{ color: "var(--text-primary)" }}>
+                {previewCard.name}
+              </div>
+              <div className="flex items-center justify-center gap-3 text-sm">
+                <span style={{ color: "#f87171" }}>⚔ {previewCard.attack}</span>
+                <span style={{ color: "#60a5fa" }}>🛡 {previewCard.defense}</span>
+              </div>
+              <div className="flex items-center justify-center gap-2 text-xs">
+                <span className="uppercase font-bold" style={{ color: RARITY_COLORS[previewCard.rarity] }}>
+                  {previewCard.rarity}
+                </span>
+                <span style={{ color: "var(--text-muted)" }}>•</span>
+                <span style={{ color: "var(--text-muted)" }}>
+                  {TYPE_ICONS[previewCard.type]} {previewCard.type}
+                </span>
+              </div>
+              {previewCard.effect && (
+                <div
+                  className="text-xs px-3 py-1.5 rounded"
+                  style={{ color: "var(--text-muted)", background: "rgba(0,0,0,0.4)" }}
+                >
+                  {previewCard.effect}
+                </div>
+              )}
+            </div>
+            {previewSource === "collection" ? (
+              <button
+                onClick={() => { if (!isFull) { addCard(previewCard); setMobilePreview(false); } }}
+                disabled={isFull}
+                className="btn-game btn-game-crimson w-full py-2 text-sm"
+              >
+                {isFull ? "Deck Full" : "+ Add to Deck"}
+              </button>
+            ) : (
+              <button
+                onClick={() => { removeCard(previewDeckIdx); setMobilePreview(false); }}
+                className="btn-game btn-game-arcane w-full py-2 text-sm"
+              >
+                ✕ Remove from Deck
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

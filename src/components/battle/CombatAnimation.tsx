@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState, useRef, useCallback } from "react";
 import type { BattleCard } from "@/lib/battle/types";
 import type { BattlePlayerInfo } from "./BattleBoard";
@@ -35,11 +36,11 @@ type AnimPhase =
   | "wait"        // ready to dismiss
   | "exit";       // fade out
 
-const TYPE_ICONS: Record<string, string> = {
-  character: "🧹",
-  arsenal: "⚔️",
-  destination: "🏰",
-  trick: "✨",
+const TYPE_ICONS: Record<string, React.ReactNode> = {
+  character: <Image src="/icons/types/character.png" alt="Character" width={16} height={16} className="inline-block" />,
+  arsenal: <Image src="/icons/types/arsenal.png" alt="Arsenal" width={16} height={16} className="inline-block" />,
+  destination: <Image src="/icons/types/destination.png" alt="Destination" width={16} height={16} className="inline-block" />,
+  trick: <Image src="/icons/types/trick.png" alt="Trick" width={16} height={16} className="inline-block" />,
 };
 
 const RARITY_BORDER: Record<string, string> = {
@@ -50,6 +51,9 @@ const RARITY_BORDER: Record<string, string> = {
   unknown: "rgba(168,85,247,0.6)",
 };
 
+// Busts stale browser cache from old 24h Cache-Control headers
+import { RENDER_V } from "@/lib/renderVersion";
+const CACHE_BUST = `v=${RENDER_V}`;
 export default function CombatAnimation({
   playerCard,
   opponentCard,
@@ -73,10 +77,6 @@ export default function CombatAnimation({
   const [canDismiss, setCanDismiss] = useState(false);
   const doneRef = useRef(false);
 
-  // Animated HP values — start at "before" and drop on result phases
-  const [pHp, setPHp] = useState(playerHpBefore);
-  const [oHp, setOHp] = useState(opponentHpBefore);
-
   const finish = useCallback(() => {
     if (doneRef.current || !canDismiss) return;
     doneRef.current = true;
@@ -92,10 +92,10 @@ export default function CombatAnimation({
     };
 
     after(1800, () => setPhase("p-strike"));
-    after(2500, () => { setPhase("p-result"); setOHp(opponentHpAfter); });
+    after(2500, () => setPhase("p-result"));
     after(3800, () => setPhase("gap"));
     after(4400, () => setPhase("o-strike"));
-    after(5100, () => { setPhase("o-result"); setPHp(playerHpAfter); });
+    after(5100, () => setPhase("o-result"));
     after(6400, () => { setPhase("wait"); setCanDismiss(true); });
 
     return () => timers.forEach(clearTimeout);
@@ -173,9 +173,9 @@ export default function CombatAnimation({
                 className="text-sm sm:text-base font-bold tabular-nums transition-colors duration-300"
                 style={{ color: playerHit ? "#ef4444" : "var(--text-primary)" }}
               >
-                {pHp}/{playerMaxHp}
+                {playerHpBefore}/{playerMaxHp}
               </div>
-              <HPBarMini current={pHp} max={playerMaxHp} flash={playerHit} />
+              <HPBarMini current={playerHpBefore} max={playerMaxHp} flash={playerHit} />
             </div>
 
             {/* Damage received from opponent */}
@@ -281,9 +281,9 @@ export default function CombatAnimation({
                 className="text-sm sm:text-base font-bold tabular-nums transition-colors duration-300"
                 style={{ color: opponentHit ? "#ef4444" : "var(--text-primary)" }}
               >
-                {oHp}/{opponentMaxHp}
+                {opponentHpBefore}/{opponentMaxHp}
               </div>
-              <HPBarMini current={oHp} max={opponentMaxHp} flash={opponentHit} />
+              <HPBarMini current={opponentHpBefore} max={opponentMaxHp} flash={opponentHit} />
             </div>
 
             {/* Damage received from player */}
@@ -369,71 +369,58 @@ function CardDisplay({
   incomingDamage?: number;
 }) {
   const borderColor = RARITY_BORDER[card.rarity] ?? RARITY_BORDER.normal;
-  const isAdvanced = card.rarity === "uiiiii" || card.rarity === "special";
 
   return (
     <div
-      className="relative w-36 h-52 sm:w-44 sm:h-60 flex flex-col border-2 rounded-lg overflow-hidden"
+      className="relative w-36 sm:w-44 flex flex-col items-center"
       style={{
-        borderColor: shake ? "#ef4444" : borderColor,
-        background: isAdvanced
-          ? "linear-gradient(160deg, rgba(40,10,60,0.95), rgba(15,0,32,0.95))"
-          : "linear-gradient(160deg, rgba(15,0,32,0.95), rgba(8,0,18,0.95))",
-        boxShadow: shake
-          ? "0 0 30px rgba(239,68,68,0.5), 0 0 60px rgba(0,0,0,0.5)"
-          : `0 0 20px ${borderColor}, 0 0 40px rgba(0,0,0,0.5)`,
         animation: shake ? "combat-shake-anim 300ms ease-in-out" : "none",
-        transition: "border-color 300ms, box-shadow 300ms",
       }}
     >
-      {/* Card art area */}
-      <div
-        className="flex-1 flex items-center justify-center text-4xl sm:text-5xl select-none"
-        style={{ background: "rgba(0,0,0,0.4)" }}
-      >
-        {TYPE_ICONS[card.type] ?? "❓"}
-      </div>
+      {/* Rendered card image (already contains border, name, art, stats) */}
+      <img
+        src={`/api/cards/render/${encodeURIComponent(card.cardId || card.name)}?${CACHE_BUST}`}
+        alt={card.name}
+        className="w-full rounded-lg select-none"
+        style={{
+          boxShadow: shake
+            ? "0 0 30px rgba(239,68,68,0.5), 0 0 60px rgba(0,0,0,0.5)"
+            : `0 0 20px ${borderColor}, 0 0 40px rgba(0,0,0,0.5)`,
+          transition: "box-shadow 300ms",
+        }}
+        draggable={false}
+      />
 
-      {/* Info */}
-      <div className="p-2.5 sm:p-3 flex flex-col gap-0.5">
+      {/* Defense-break stats overlay (only shown when hit) */}
+      {defBroken && (
         <div
-          className="font-display font-bold text-[10px] sm:text-xs tracking-wider uppercase truncate"
-          style={{ color: "var(--text-primary)" }}
+          className="absolute top-full mt-1 left-1/2 -translate-x-1/2 flex gap-3 text-xs sm:text-sm items-center px-3 py-1.5 rounded-lg whitespace-nowrap z-10"
+          style={{
+            background: "rgba(0,0,0,0.7)",
+            border: "1px solid rgba(239,68,68,0.3)",
+            animation: "combat-calc-in 400ms ease-out both",
+          }}
         >
-          {card.name}
-        </div>
-
-        {/* ATK + DEF stats — with break effect when hit */}
-        <div className="flex gap-3 text-xs sm:text-sm items-center">
           <span style={{ color: "#f87171" }}>⚔ {card.attack}</span>
-
-          {defBroken ? (
-            <span className="flex items-center gap-1" style={{ animation: "combat-calc-in 400ms ease-out both" }}>
-              {/* Broken shield */}
-              <span style={{ opacity: 0.4, filter: "grayscale(1)" }} className="combat-shield-break">
-                🛡
-              </span>
-              {/* Original DEF struck through */}
-              <span style={{ color: "rgba(96,165,250,0.4)", textDecoration: "line-through", textDecorationColor: "#ef4444" }}>
-                {card.defense}
-              </span>
-              {/* Incoming attack → damage result */}
-              <span
-                className="font-display font-black"
-                style={{
-                  color: (incomingDamage ?? 0) > 0 ? "#ef4444" : "var(--text-muted)",
-                  textShadow: (incomingDamage ?? 0) > 0 ? "0 0 8px rgba(239,68,68,0.6)" : "none",
-                }}
-              >
-                {incomingDamage ?? 0}
-              </span>
+          <span className="flex items-center gap-1">
+            <span style={{ opacity: 0.4, filter: "grayscale(1)" }} className="combat-shield-break">
+              🛡
             </span>
-          ) : (
-            <span style={{ color: "#60a5fa" }}>🛡 {card.defense}</span>
-          )}
+            <span style={{ color: "rgba(96,165,250,0.4)", textDecoration: "line-through", textDecorationColor: "#ef4444" }}>
+              {card.defense}
+            </span>
+            <span
+              className="font-display font-black"
+              style={{
+                color: (incomingDamage ?? 0) > 0 ? "#ef4444" : "var(--text-muted)",
+                textShadow: (incomingDamage ?? 0) > 0 ? "0 0 8px rgba(239,68,68,0.6)" : "none",
+              }}
+            >
+              {incomingDamage ?? 0}
+            </span>
+          </span>
         </div>
-
-      </div>
+      )}
 
       {/* Combo source badge */}
       {card.comboSource && (

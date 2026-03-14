@@ -23,8 +23,8 @@
   --text-muted: #8870aa;
   --text-gold: #d4a830;
 
-  --border-gold: rgba(200, 150, 42, 0.35);
-  --border-arcane: rgba(124, 60, 237, 0.35);
+  --border-gold: rgba(200, 150, 42, 0.55);
+  --border-arcane: rgba(124, 60, 237, 0.55);
   --glow-gold:
     0 0 20px rgba(200, 150, 42, 0.25), 0 0 60px rgba(200, 150, 42, 0.08);
   --glow-arcane:
@@ -46,6 +46,12 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  height: 100%;
+  overscroll-behavior-x: none; /* Prevents trackpad back/forward navigation arrows */
+}
+
 html {
   scroll-behavior: smooth;
 }
@@ -65,7 +71,6 @@ body {
     );
   color: var(--text-primary);
   font-family: var(--font-body), 'Rajdhani', system-ui, sans-serif;
-  min-height: 100vh;
   line-height: 1.6;
 }
 
@@ -255,14 +260,25 @@ h3 {
   color: #9ca3af;
 }
 .rarity-nice {
-  border-image: linear-gradient(135deg, #3b82f6, #60a5fa, #93c5fd) 1;
+  border-image: linear-gradient(135deg, #3b82f6, #ffffff, #60a5fa) 1;
   color: #60a5fa;
-  box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.5), 0 0 25px rgba(255, 255, 255, 0.5);
+  position: relative;
+}
+.rarity-nice::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.6) 50%, transparent 60%);
+  background-size: 200% 200%;
+  animation: shimmer 3s infinite linear;
+  pointer-events: none;
+  border-radius: inherit;
 }
 .rarity-special {
-  border-image: linear-gradient(135deg, #dc2626, #ef4444, #f87171) 1;
+  border-image: linear-gradient(135deg, #dc2626, #ffffff, #facc15, #dc2626) 1;
   color: #f87171;
-  box-shadow: 0 0 12px rgba(239, 68, 68, 0.35);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.5), 0 0 25px rgba(255, 255, 255, 0.5), inset 0 0 8px rgba(250, 204, 21, 0.5);
 }
 .rarity-uiiiii {
   border-image: linear-gradient(135deg, #16a34a, #22c55e, #4ade80) 1;
@@ -466,6 +482,12 @@ h3 {
   }
 }
 
+/* ── Card Reveal Overlay ─────────────────────────── */
+@keyframes reveal-glow-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
 /* ── Gold Text Gradient ───────────────────────────── */
 .text-gold-gradient {
   background: linear-gradient(135deg, #d4a830 0%, #f0c840 40%, #c88020 100%);
@@ -643,11 +665,11 @@ h3 {
 }
 @keyframes transform-merge-left {
   from { transform: translateX(0)    scale(1);    }
-  to   { transform: translateX(52px) scale(0.78); }
+  to   { transform: translateX(80px) scale(0.7); opacity: 0.6; }
 }
 @keyframes transform-merge-right {
   from { transform: translateX(0)     scale(1);    }
-  to   { transform: translateX(-52px) scale(0.78); }
+  to   { transform: translateX(-80px) scale(0.7); opacity: 0.6; }
 }
 @keyframes transform-flash-out {
   0%   { opacity: 0; }
@@ -655,10 +677,11 @@ h3 {
   100% { opacity: 0; }
 }
 @keyframes transform-result-burst {
-  0%   { transform: scale(0.1) rotate(-6deg); opacity: 0; }
-  55%  { transform: scale(1.12) rotate(1deg); opacity: 1; }
-  75%  { transform: scale(0.96) rotate(0deg); }
-  100% { transform: scale(1)    rotate(0deg); opacity: 1; }
+  0%   { transform: scale(0.05) rotate(-8deg); opacity: 0; filter: brightness(3); }
+  40%  { transform: scale(1.08) rotate(1deg);  opacity: 1; filter: brightness(1.5); }
+  65%  { transform: scale(0.97) rotate(0deg);  filter: brightness(1.1); }
+  85%  { transform: scale(1.02) rotate(0deg);  filter: brightness(1); }
+  100% { transform: scale(1)    rotate(0deg);  opacity: 1; filter: brightness(1); }
 }
 @keyframes transform-particle-fly {
   0%   { transform: translate(0, 0) scale(1); opacity: 1; }
@@ -667,6 +690,10 @@ h3 {
 @keyframes transform-label-in {
   from { opacity: 0; transform: translateY(10px) scale(0.9); }
   to   { opacity: 1; transform: translateY(0)    scale(1);   }
+}
+@keyframes transform-glow-pulse {
+  0%   { opacity: 0.4; }
+  100% { opacity: 1; }
 }
 
 /* ── Stat Flame Effects ────────────────────────────── */
@@ -701,3 +728,299 @@ h3 {
 .flame-blue   { animation: flame-blue   1.4s ease-in-out infinite; }
 .flame-green  { animation: flame-green  1.4s ease-in-out infinite; }
 .flame-subtle { animation: flame-subtle 2.2s ease-in-out infinite; }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ *  Battle2 — Alternative battle UI theme
+ *  Matches the MASTER arcane game theme: deep purples, gold accents,
+ *  Cinzel display type, frosted glass over arena backgrounds.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+.battle2-root {
+  /* Reuse the main app's palette */
+  --b2-bg: var(--bg-void);
+  --b2-bg-deep: var(--bg-deep);
+  --b2-surface: rgba(15, 0, 32, 0.6);
+  --b2-surface-hover: rgba(25, 5, 50, 0.7);
+  --b2-border: var(--border-gold);
+  --b2-border-light: rgba(200, 150, 42, 0.5);
+  --b2-text: var(--text-primary);
+  --b2-text-muted: var(--text-muted);
+  --b2-accent: var(--gold);
+  --b2-accent-bright: var(--gold-bright);
+  --b2-danger: var(--crimson-bright);
+  --b2-trick: var(--arcane-bright);
+  --b2-combo: var(--arcane-bright);
+  --b2-hp-healthy: var(--gold-bright);
+  --b2-hp-low: var(--gold);
+  --b2-hp-critical: var(--crimson-bright);
+  --b2-type-character: var(--gold);
+  --b2-type-arsenal: #6090d0;
+  --b2-type-destination: #48a868;
+  --b2-type-trick: var(--arcane-bright);
+  color: var(--b2-text);
+  font-family: var(--font-body), 'Rajdhani', system-ui, sans-serif;
+}
+
+/* ── Glass panel ── */
+.b2-glass {
+  background: linear-gradient(135deg, rgba(15, 0, 32, 0.65) 0%, rgba(10, 0, 24, 0.65) 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--b2-border);
+  box-shadow: var(--glow-gold), inset 0 1px 0 rgba(200, 150, 42, 0.08);
+}
+.b2-glass-strong {
+  background: linear-gradient(135deg, rgba(15, 0, 32, 0.85) 0%, rgba(10, 0, 24, 0.85) 100%);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--b2-border-light);
+  box-shadow: var(--glow-gold);
+}
+
+/* ── Phase bar ── */
+.b2-phase-node {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-family: var(--font-display), 'Cinzel', serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--b2-text-muted);
+  transition: color 0.3s, background 0.3s, box-shadow 0.3s;
+}
+.b2-phase-node[data-active="true"] {
+  color: var(--gold-bright);
+  background: rgba(200, 150, 42, 0.1);
+  box-shadow: 0 0 16px rgba(200, 150, 42, 0.2);
+}
+.b2-phase-node[data-done="true"] {
+  color: var(--gold);
+}
+
+/* ── HP bar ── */
+.b2-hp-track {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(74, 30, 138, 0.2);
+  border: 1px solid rgba(200, 150, 42, 0.15);
+  overflow: hidden;
+}
+.b2-hp-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 700ms ease-out, background-color 500ms;
+}
+.b2-hp-fill[data-level="healthy"] { background: var(--b2-hp-healthy); box-shadow: 0 0 8px rgba(240, 192, 64, 0.3); }
+.b2-hp-fill[data-level="low"]     { background: var(--b2-hp-low); box-shadow: 0 0 8px rgba(200, 150, 42, 0.4); }
+.b2-hp-fill[data-level="critical"]{ background: var(--b2-hp-critical); box-shadow: 0 0 8px rgba(212, 32, 64, 0.5); }
+
+/* ── Buttons ── */
+.b2-btn {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+  padding: 0.5rem 1.25rem;
+  font-family: var(--font-display), 'Cinzel', serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+  background: linear-gradient(135deg, rgba(30, 10, 5, 0.9) 0%, rgba(60, 20, 5, 0.9) 100%);
+  border: 1px solid var(--gold-dim);
+  clip-path: polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+.b2-btn:hover:not(:disabled) {
+  border-color: var(--gold);
+  box-shadow: var(--glow-gold);
+  color: #fff;
+}
+.b2-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+  box-shadow: none;
+}
+.b2-btn-accent {
+  color: var(--gold-bright);
+  border-color: var(--gold-dim);
+  background: linear-gradient(135deg, rgba(30, 10, 5, 0.9) 0%, rgba(60, 20, 5, 0.9) 100%);
+}
+.b2-btn-accent:hover:not(:disabled) {
+  border-color: var(--gold);
+  box-shadow: var(--glow-gold);
+  color: #fff;
+}
+.b2-btn-danger {
+  color: #ff8888;
+  background: linear-gradient(135deg, rgba(30, 0, 5, 0.9) 0%, rgba(80, 10, 15, 0.9) 100%);
+  border-color: rgba(155, 26, 42, 0.5);
+}
+.b2-btn-danger:hover:not(:disabled) {
+  border-color: var(--crimson-bright);
+  box-shadow: var(--glow-crimson);
+  color: #ffaaaa;
+}
+
+/* ── Card type stripe colors ── */
+.b2-card-stripe-character  { border-left: 3px solid var(--b2-type-character); }
+.b2-card-stripe-arsenal    { border-left: 3px solid var(--b2-type-arsenal); }
+.b2-card-stripe-destination{ border-left: 3px solid var(--b2-type-destination); }
+.b2-card-stripe-trick      { border-left: 3px solid var(--b2-type-trick); }
+
+/* ── Animations ── */
+@keyframes b2-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes b2-slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes b2-slide-down {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes b2-slide-in-right {
+  from { opacity: 0; transform: translateX(40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes b2-scale-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes b2-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.6; }
+}
+@keyframes b2-shake {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-4px); }
+  40%      { transform: translateX(4px); }
+  60%      { transform: translateX(-3px); }
+  80%      { transform: translateX(2px); }
+}
+@keyframes b2-damage-pop {
+  0%   { opacity: 0; transform: translateY(0) scale(0.5); }
+  30%  { opacity: 1; transform: translateY(-8px) scale(1.2); }
+  100% { opacity: 0; transform: translateY(-24px) scale(1); }
+}
+@keyframes b2-card-clash-left {
+  0%   { transform: translateX(0); }
+  40%  { transform: translateX(30%); }
+  50%  { transform: translateX(25%); }
+  100% { transform: translateX(0); }
+}
+@keyframes b2-card-clash-right {
+  0%   { transform: translateX(0); }
+  40%  { transform: translateX(-30%); }
+  50%  { transform: translateX(-25%); }
+  100% { transform: translateX(0); }
+}
+@keyframes b2-impact-flash {
+  0%   { opacity: 0; transform: scale(0.3); }
+  30%  { opacity: 0.8; transform: scale(1.2); }
+  100% { opacity: 0; transform: scale(2); }
+}
+@keyframes b2-banner-enter {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes b2-combo-merge {
+  0%   { opacity: 1; }
+  50%  { opacity: 0.6; transform: scale(0.85); }
+  100% { opacity: 0; transform: scale(0.5); }
+}
+@keyframes b2-combo-reveal {
+  0%   { opacity: 0; transform: scale(0.7);  filter: brightness(2); }
+  50%  { opacity: 1; transform: scale(1.05); filter: brightness(1.5); }
+  100% { opacity: 1; transform: scale(1);    filter: brightness(1); }
+}
+
+.b2-animate-fade-in     { animation: b2-fade-in 0.3s ease-out both; }
+.b2-animate-slide-up    { animation: b2-slide-up 0.35s ease-out both; }
+.b2-animate-slide-down  { animation: b2-slide-down 0.35s ease-out both; }
+.b2-animate-slide-right { animation: b2-slide-in-right 0.3s ease-out both; }
+.b2-animate-scale-in    { animation: b2-scale-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.b2-animate-pulse       { animation: b2-pulse 2s ease-in-out infinite; }
+.b2-animate-shake       { animation: b2-shake 0.3s ease-in-out; }
+.b2-animate-damage-pop  { animation: b2-damage-pop 0.8s ease-out both; }
+.b2-animate-banner      { animation: b2-banner-enter 0.3s ease-out both; }
+
+/* ═══════════════════════════════════════════════════
+   FLIPPABLE CARD — Holographic border & spin support
+   ═══════════════════════════════════════════════════ */
+
+.flippable-card-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: min(90vw, 340px);
+  margin: 0 auto;
+}
+
+@media (min-width: 768px) {
+  .flippable-card-container {
+    max-width: min(70vw, 420px);
+  }
+}
+
+.flippable-card-container.is-landscape {
+  max-width: min(95vw, 560px);
+}
+
+@media (min-width: 768px) {
+  .flippable-card-container.is-landscape {
+    max-width: min(90vw, 750px);
+  }
+}
+
+.flippable-card-holo-border {
+  position: relative;
+  overflow: visible;
+  width: 100%;
+  will-change: background, box-shadow;
+}
+
+/* Shimmer sweep that follows the rotation */
+.flippable-card-holo-border::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 15px;
+  background: inherit;
+  filter: blur(6px);
+  opacity: 0.5;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.flippable-card-inner {
+  /* removed will-change to prevent 1x rasterization blur on high-DPI screens */
+}
+
+.flippable-card-face {
+  /* removed will-change to prevent 1x rasterization blur on high-DPI screens */
+}
+
+.flippable-card-light-overlay {
+  will-change: background;
+  mix-blend-mode: overlay;
+}
+
+.flippable-card-hint {
+  font-family: var(--font-body), 'Rajdhani', system-ui, sans-serif;
+}
+
+/* Card reveal overlay: use actual card-back image */
+@keyframes reveal-glow-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+/* Note: Modals and Portal styling */

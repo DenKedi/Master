@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
     discount,
     expiresAt,
     bundleItems,
+    isFeatured,
   } = body;
 
   if (!name || !description || price === undefined || !cardCount || !imageUrl) {
@@ -48,6 +49,7 @@ export async function POST(req: NextRequest) {
     guaranteedRarity,
     imageUrl,
     type: type ?? 'standard',
+    isFeatured: isFeatured ?? false,
     discount,
     expiresAt,
     bundleItems,

@@ -10,6 +10,7 @@ export interface PackDocument extends Document {
   imageUrl: string;
   type: PackType;
   isActive: boolean;
+  isFeatured: boolean;
   discount?: number;
   expiresAt?: Date;
   bundleItems: mongoose.Types.ObjectId[];
@@ -34,6 +35,7 @@ const PackSchema = new Schema<PackDocument>(
       default: 'standard',
     },
     isActive: { type: Boolean, default: true },
+    isFeatured: { type: Boolean, default: false },
     discount: { type: Number, min: 0, max: 100 },
     expiresAt: { type: Date },
     bundleItems: [{ type: Schema.Types.ObjectId, ref: 'Pack' }],

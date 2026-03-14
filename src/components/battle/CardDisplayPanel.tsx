@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
+import Image from "next/image";
 import type { BattleCard } from "@/lib/battle/types";
+import { RENDER_V } from "@/lib/renderVersion";
 
 /* ═══════════════════════════════════════════════════════════════════════════
  *  CardDisplayPanel — Full-detail card inspector + combo preview panel.
@@ -23,18 +25,18 @@ const RARITY_STYLES: Record<string, { border: string; glow: string; text: string
   unknown: { border: "rgba(168,85,247,0.5)",  glow: "rgba(168,85,247,0.3)",  text: "#a855f7", label: "Unknown" },
 };
 
-const TYPE_ICONS: Record<string, string> = {
-  character: "👤",
-  arsenal: "⚔️",
-  destination: "🏟️",
-  trick: "✨",
+const TYPE_ICONS: Record<string, React.ReactNode> = {
+  character: <Image src="/icons/types/character.png" alt="Character" width={16} height={16} className="inline-block" />,
+  arsenal: <Image src="/icons/types/arsenal.png" alt="Arsenal" width={16} height={16} className="inline-block" />,
+  destination: <Image src="/icons/types/destination.png" alt="Destination" width={16} height={16} className="inline-block" />,
+  trick: <Image src="/icons/types/trick.png" alt="Trick" width={16} height={16} className="inline-block" />,
 };
 
-const CHARACTER_TYPE_LABELS: Record<string, { icon: string; label: string }> = {
-  human: { icon: "🧑", label: "Human" },
-  goblin: { icon: "👺", label: "Goblin" },
-  beast: { icon: "🐺", label: "Beast" },
-  demon: { icon: "😈", label: "Demon" },
+const CHARACTER_TYPE_LABELS: Record<string, { icon: React.ReactNode; label: string }> = {
+  human: { icon: <Image src="/icons/character-types/human.png" alt="Human" width={16} height={16} className="inline-block" />, label: "Human" },
+  goblin: { icon: <Image src="/icons/character-types/goblin.png" alt="Goblin" width={16} height={16} className="inline-block" />, label: "Goblin" },
+  beast: { icon: <Image src="/icons/character-types/beast.png" alt="Beast" width={16} height={16} className="inline-block" />, label: "Beast" },
+  underworld: { icon: <Image src="/icons/character-types/underworld.png" alt="Underworld" width={16} height={16} className="inline-block" />, label: "Underworld" },
 };
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -108,72 +110,28 @@ export default function CardDisplayPanel({
       }}
       onClick={(e) => e.stopPropagation()}
     >
-      {/* ── Artwork ── */}
-      <div className="relative w-full aspect-[4/3] overflow-hidden bg-black/40">
-        {card.imageUrl && !isHidden ? (
-          <img
-            src={card.imageUrl}
-            alt={card.name}
-            className="w-full h-full object-cover"
-            draggable={false}
-          />
-        ) : (
+      {/* ── Rendered card image ── */}
+      <div className="relative w-full overflow-hidden bg-black/40">
+        {isHidden ? (
           <div
-            className="w-full h-full flex items-center justify-center"
+            className="w-full aspect-[512/880] flex items-center justify-center"
             style={{ background: "linear-gradient(135deg, var(--bg-void), var(--bg-panel))" }}
           >
-            {isHidden ? (
-              <div className="text-center">
-                <div className="text-6xl opacity-30 animate-arcane-pulse">❓</div>
-                <div className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
-                  Undiscovered Combo
-                </div>
+            <div className="text-center">
+              <div className="text-6xl opacity-30 animate-arcane-pulse">❓</div>
+              <div className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
+                Undiscovered Combo
               </div>
-            ) : (
-              <span className="text-7xl opacity-20">{typeIcon}</span>
-            )}
+            </div>
           </div>
+        ) : (
+          <img
+            src={`/api/cards/render/${encodeURIComponent(card.cardId || card.name)}?v=${RENDER_V}`}
+            alt={card.name}
+            className="w-full"
+            draggable={false}
+          />
         )}
-
-        {/* Bottom gradient */}
-        <div
-          className="absolute inset-x-0 bottom-0 h-1/3 pointer-events-none"
-          style={{ background: "linear-gradient(transparent, var(--bg-panel-alt))" }}
-        />
-
-        {/* Type badge (top-left) */}
-        <div
-          className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider backdrop-blur-md"
-          style={{
-            background: "rgba(0,0,0,0.65)",
-            color: rarity.text,
-            border: `1px solid ${rarity.border}`,
-          }}
-        >
-          <span>{typeIcon}</span>
-          <span>{card.type}</span>
-          {card.characterType && CHARACTER_TYPE_LABELS[card.characterType] && (
-            <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-              {CHARACTER_TYPE_LABELS[card.characterType].icon}
-            </span>
-          )}
-          {(card.type === "character" || card.type === "arsenal") && (
-            <span
-              className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black leading-none"
-              style={{
-                background: card.comboSource
-                  ? "linear-gradient(135deg, #a855f7, #7c3aed)"
-                  : "linear-gradient(135deg, #c8962a, #a17720)",
-                color: "#fff",
-                boxShadow: card.comboSource
-                  ? "0 0 6px rgba(168,85,247,0.6)"
-                  : "0 0 6px rgba(200,150,42,0.6)",
-              }}
-            >
-              {card.comboSource ? "S" : "C"}
-            </span>
-          )}
-        </div>
 
         {/* Close button (top-right) */}
         <button
@@ -189,84 +147,23 @@ export default function CardDisplayPanel({
         </button>
       </div>
 
-      {/* ── Card info ── */}
+      {/* ── Extra info below card image ── */}
       <div className={mode === "inspect" ? "p-4 sm:p-5 space-y-3" : "p-3 space-y-2"}>
-        {/* Name + Rarity */}
-        <div className="flex items-start justify-between gap-2">
-          <h2
-            className={[
-              "font-display font-bold tracking-wide",
-              mode === "inspect" ? "text-lg sm:text-xl" : "text-sm sm:text-base",
-              isHidden ? "" : "",
-            ].join(" ")}
-            style={{ color: isHidden ? "var(--text-muted)" : "var(--text-primary)" }}
-          >
-            {isHidden ? "??? Unknown ???" : card.name}
-          </h2>
-          <span
-            className="flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider"
-            style={{ background: rarity.glow, color: rarity.text, border: `1px solid ${rarity.border}` }}
-          >
-            {isHidden ? "???" : rarity.label}
-          </span>
-        </div>
-
-        {/* Description */}
-        {!isHidden && card.description && (
-          <p
-            className={mode === "inspect" ? "text-sm leading-relaxed" : "text-xs leading-relaxed"}
-            style={{ color: "var(--text-muted)" }}
-          >
-            {card.description}
-          </p>
-        )}
-
-        {/* Character Type */}
-        {!isHidden && card.characterType && CHARACTER_TYPE_LABELS[card.characterType] && (
-          <div
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider"
-            style={{
-              background: "rgba(200,150,42,0.08)",
-              border: "1px solid rgba(200,150,42,0.2)",
-              color: "var(--text-muted)",
-            }}
-          >
-            <span>{CHARACTER_TYPE_LABELS[card.characterType].icon}</span>
-            <span>{CHARACTER_TYPE_LABELS[card.characterType].label}</span>
-          </div>
-        )}
-
-        {/* Stats */}
-        {!isHidden && (card.type === "character" || card.type === "arsenal") && (
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <span className={mode === "inspect" ? "text-xl" : "text-base"}>⚔</span>
-              <div>
-                <div
-                  className={mode === "inspect" ? "text-xl font-bold" : "text-base font-bold"}
-                  style={{ color: "#ef4444" }}
-                >
-                  {card.attack}
-                </div>
-                <div className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                  Attack
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={mode === "inspect" ? "text-xl" : "text-base"}>🛡</span>
-              <div>
-                <div
-                  className={mode === "inspect" ? "text-xl font-bold" : "text-base font-bold"}
-                  style={{ color: "#3b82f6" }}
-                >
-                  {card.defense}
-                </div>
-                <div className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                  Defense
-                </div>
-              </div>
-            </div>
+        {/* Hidden card name placeholder */}
+        {isHidden && (
+          <div className="flex items-start justify-between gap-2">
+            <h2
+              className={mode === "inspect" ? "font-display font-bold tracking-wide text-lg sm:text-xl" : "font-display font-bold tracking-wide text-sm sm:text-base"}
+              style={{ color: "var(--text-muted)" }}
+            >
+              ??? Unknown ???
+            </h2>
+            <span
+              className="flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider"
+              style={{ background: rarity.glow, color: rarity.text, border: `1px solid ${rarity.border}` }}
+            >
+              ???
+            </span>
           </div>
         )}
 
@@ -356,9 +253,10 @@ export default function CardDisplayPanel({
             }}
             className="w-full py-2.5 rounded-lg text-sm font-bold tracking-wider uppercase transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
             style={{
-              background: "linear-gradient(135deg, var(--crimson), var(--crimson-bright))",
-              color: "var(--text-primary)",
-              boxShadow: "var(--glow-crimson)",
+              background: "linear-gradient(135deg, rgba(30,10,5,0.9), rgba(80,50,10,0.9))",
+              color: "var(--gold-bright)",
+              boxShadow: "var(--glow-gold)",
+              border: "1px solid var(--gold-dim)",
             }}
           >
             {action.label}
@@ -380,7 +278,7 @@ export default function CardDisplayPanel({
   if (mode === "preview") {
     return (
       <div
-        className="fixed right-3 top-1/2 -translate-y-1/2 z-[90] animate-panel-slide-in"
+        className="fixed left-1/2 -translate-x-1/2 bottom-40 z-[90] animate-panel-slide-in"
         onMouseEnter={onPanelMouseEnter}
         onMouseLeave={onPanelMouseLeave}
       >

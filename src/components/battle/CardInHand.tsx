@@ -1,6 +1,22 @@
 "use client";
 
+import { useState } from "react";
 import type { BattleCard } from "@/lib/battle/types";
+import { RENDER_V } from "@/lib/renderVersion";
+
+/** Build the render-route URL for a card. Combo results use query overrides. */
+function cardImageUrl(card: BattleCard): string {
+  const base = `/api/cards/render/${encodeURIComponent(card.cardId || card.name)}`;
+  // If card has overridden stats from a combo bonus, pass them as query params
+  if (card.comboSource) {
+    const p = new URLSearchParams();
+    p.set("atk", String(card.attack));
+    p.set("def", String(card.defense));
+    p.set("v", String(RENDER_V));
+    return `${base}?${p}`;
+  }
+  return `${base}?v=${RENDER_V}`;
+}
 
 interface CardInHandProps {
   card: BattleCard;
@@ -21,25 +37,12 @@ interface CardInHandProps {
   dragProps?: Record<string, unknown>;
 }
 
-const TYPE_ICONS: Record<string, string> = {
-  character: "👤",
-  arsenal: "⚔️",
-  destination: "🏟️",
-  trick: "✨",
-};
-
-const CHARACTER_TYPE_ICONS: Record<string, string> = {
-  human: "🧑",
-  goblin: "👺",
-  beast: "🐺",
-  demon: "😈",
-};
-
-const TYPE_COLORS: Record<string, string> = {
-  character: "rgba(200,150,42,0.4)",
-  arsenal: "rgba(59,130,246,0.4)",
-  destination: "rgba(34,197,94,0.4)",
-  trick: "rgba(168,85,247,0.4)",
+const RARITY_COLORS: Record<string, string> = {
+  normal:  "rgba(156,163,175,0.6)",
+  nice:    "rgba(96,165,250,0.7)",
+  special: "rgba(248,113,113,0.7)",
+  uiiiii:  "rgba(74,222,128,0.7)",
+  unknown: "rgba(168,85,247,0.7)",
 };
 
 export default function CardInHand({
@@ -57,7 +60,7 @@ export default function CardInHand({
   if (faceDown) {
     return (
       <div
-        className="w-20 h-28 sm:w-24 sm:h-32 rounded flex-shrink-0"
+        className="w-20 h-28 sm:w-24 sm:h-[8.5rem] rounded flex-shrink-0"
         style={{
           background: "linear-gradient(135deg, #1a0030, #0a0018)",
           border: "1px solid rgba(200,150,42,0.15)",
@@ -77,104 +80,49 @@ export default function CardInHand({
       onClick={disabled ? undefined : (onInspect ?? onClick)}
       onMouseEnter={onHoverStart}
       onMouseLeave={onHoverEnd}
-      disabled={disabled}
+      aria-disabled={disabled || undefined}
       className={[
-        "relative w-20 h-28 sm:w-24 sm:h-34 rounded flex-shrink-0 flex flex-col p-1.5 text-left transition-all duration-200 select-none",
+        "relative w-20 h-28 sm:w-24 sm:h-[8.5rem] rounded flex-shrink-0 flex flex-col p-1.5 text-left transition-all duration-200 select-none",
         highlighted && !staged ? "ring-2 ring-yellow-400 scale-105 z-10" : "",
         staged ? "opacity-40 grayscale scale-95" : "",
         disabled ? "opacity-40 cursor-not-allowed" : "cursor-grab hover:-translate-y-1 hover:shadow-lg active:cursor-grabbing",
       ].join(" ")}
       style={{
         background: "linear-gradient(135deg, rgba(15,0,32,0.95), rgba(8,0,18,0.95))",
-        border: `1px solid ${highlighted && !staged ? "var(--gold-bright)" : TYPE_COLORS[card.type] ?? "var(--border-gold)"}`,
+        border: `1px solid ${highlighted && !staged ? "var(--gold-bright)" : RARITY_COLORS[card.rarity] ?? "var(--border-gold)"}`,
         boxShadow: highlighted && !staged ? "0 0 16px rgba(200,150,42,0.4)" : "none",
         ...(dragProps?.style as React.CSSProperties ?? {}),
       }}
       {...(dragProps ? {
         onPointerDown: dragProps.onPointerDown as React.PointerEventHandler,
-        onPointerMove: dragProps.onPointerMove as React.PointerEventHandler,
-        onPointerUp: dragProps.onPointerUp as React.PointerEventHandler,
-        onPointerCancel: dragProps.onPointerCancel as React.PointerEventHandler,
       } : {})}
     >
-      {/* Type icon */}
-      <div className="text-[10px] flex items-center gap-0.5 mb-0.5">
-        <span>{TYPE_ICONS[card.type]}</span>
-        <span
-          className="uppercase tracking-wider font-bold truncate"
-          style={{ color: "var(--text-muted)", fontSize: "7px" }}
-        >
-          {card.type}
-        </span>
-        {card.characterType && (
-          <span className="ml-auto text-[9px]" title={card.characterType}>
-            {CHARACTER_TYPE_ICONS[card.characterType] ?? ''}
-          </span>
-        )}
-      </div>
+      {/* Rendered card image */}
+      <CardImage name={card.name} src={cardImageUrl(card)} />
 
-      {/* Card name + tier tag */}
-      <div className="flex items-start gap-1 mb-auto min-w-0">
-        <div
-          className="text-[9px] sm:text-[10px] font-bold leading-tight truncate min-w-0"
-          style={{ color: "var(--text-primary)" }}
-        >
-          {card.name}
-        </div>
-        {(card.type === "character" || card.type === "arsenal") && (
-          <span
-            className="flex-shrink-0 text-[7px] font-black uppercase tracking-wide px-0.5 rounded leading-tight mt-px"
-            style={card.comboSource ? {
-              background: "rgba(168,85,247,0.2)",
-              border: "1px solid rgba(168,85,247,0.6)",
-              color: "#d8b4fe",
-            } : {
-              background: "rgba(200,150,42,0.15)",
-              border: "1px solid rgba(200,150,42,0.5)",
-              color: "var(--gold)",
-            }}
-          >
-            {card.comboSource ? "S" : "C"}
-          </span>
-        )}
-      </div>
-
-      {/* Stats */}
-      <div className="flex items-center justify-between mt-auto">
-        {(card.type === "character" || card.type === "arsenal") && (
-          <>
-            <div className="text-[10px] font-bold" style={{ color: "#ef4444" }}>
-              ⚔{card.attack}
-            </div>
-            <div className="text-[10px] font-bold" style={{ color: "#3b82f6" }}>
-              🛡{card.defense}
-            </div>
-          </>
-        )}
-        {card.effects.length > 0 && (card.type === "destination" || card.type === "trick") && (
-          <div
-            className="text-[7px] truncate"
-            style={{ color: "var(--text-muted)" }}
-          >
-            {card.effects[0].description}
-          </div>
-        )}
-      </div>
-
-      {/* Rarity indicator */}
-      <div
-        className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full"
-        style={{
-          background:
-            card.rarity === "normal" ? "#6b7280"
-            : card.rarity === "nice" ? "#3b82f6"
-            : card.rarity === "special" ? "#ef4444"
-            : card.rarity === "uiiiii" ? "#22c55e"
-            : "#a855f7",
-        }}
-      />
-
-
+      {/* Staged / highlight overlays remain via className above */}
     </button>
+  );
+}
+
+function CardImage({ name, src }: { name: string; src: string }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <>
+      {!loaded && (
+        <div
+          className="absolute inset-0 rounded animate-pulse"
+          style={{ background: "rgba(15,0,32,0.9)" }}
+        />
+      )}
+      <img
+        src={src}
+        alt={name}
+        draggable={false}
+        onLoad={() => setLoaded(true)}
+        className="absolute inset-0 w-full h-full object-cover rounded select-none"
+        style={{ opacity: loaded ? 1 : 0, transition: "opacity 200ms" }}
+      />
+    </>
   );
 }

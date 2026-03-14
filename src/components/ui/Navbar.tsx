@@ -4,6 +4,7 @@ import { useSession, signOut } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { useState, Fragment, useEffect } from "react";
 import { getRankProgress } from "@/lib/ranks";
+import { usePrefetch } from "@/hooks/usePrefetch";
 
 /* ─── Nav data ─────────────────────────────────────────────────────────── */
 
@@ -44,6 +45,7 @@ function Divider() {
 
 export default function Sidebar() {
   const { data: session } = useSession();
+  const prefetch = usePrefetch();
   const pathname = usePathname();
   const user = session?.user as any;
   const [hovered, setHovered] = useState<string | null>(null);
@@ -191,10 +193,10 @@ export default function Sidebar() {
                 className="text-[10px] tracking-[0.3em] uppercase mb-1"
                 style={{ color: "var(--gold-dim)" }}
               >
-                {"\u2726"} master {"\u2726"}
+                {"\u2726"} master of {"\u2726"}
               </div>
               <div className="font-display font-black text-xl tracking-[0.2em] text-gold-gradient">
-                MASTER
+                MASTERS
               </div>
             </Link>
           </div>
@@ -329,7 +331,7 @@ export default function Sidebar() {
                 className="flex items-center gap-2 text-xs font-bold"
                 style={{ color: "var(--gold-bright)" }}
               >
-                {"\uD83E\uDE99"} <span>{(user.currency ?? 0).toLocaleString()}</span>
+                {"\uD83E\uDE99"} <span>{(prefetch.currency.data?.balance ?? user.currency ?? 0).toLocaleString()}</span>
               </div>
             )}
 

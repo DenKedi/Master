@@ -1,13 +1,5 @@
 ﻿import Link from "next/link";
 
-const features = [
-  { icon: "🗡️", label: "Blood Duels" },
-  { icon: "📦", label: "Cursed Packs" },
-  { icon: "💀", label: "Monster Cards" },
-  { icon: "🐉", label: "Legendary Beasts" },
-  { icon: "⚖️", label: "Inquisition" },
-];
-
 export default function HomePage() {
   return (
     <main
@@ -27,23 +19,23 @@ export default function HomePage() {
       <div className="relative z-10 text-center max-w-3xl animate-slide-up">
         {/* Title */}
         <div className="mb-2 text-xs tracking-[0.4em] uppercase" style={{ color: 'var(--gold)' }}>
-          ✦ Dark Card Conquest ✦
+          ✦ MASTER OF ✦
         </div>
         <h1 className="text-7xl sm:text-8xl font-black tracking-widest mb-6 text-gold-gradient font-display">
-          MASTER
+          MASTERS
         </h1>
 
         <div className="divider-rune mb-8">The Abyss Awaits</div>
 
         <p className="text-lg mb-10 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-          Summon monsters from the deep. Forge dark pacts. Defy the Inquisition.
-          <br />Your descent begins with a single blade.
+          Wir brauchen hier Text.
+          <br />Und hier Text.
         </p>
 
         {/* CTA Buttons */}
         <div className="flex flex-col sm:flex-row gap-5 justify-center mb-14">
           <Link href="/register" className="btn-game btn-game text-base px-10 py-4 animate-glow-pulse">
-            🗡️ &nbsp;Swear the Blood Oath
+            🗡️ &nbsp;Join The Game
           </Link>
           <Link
             href="/login"
@@ -59,24 +51,7 @@ export default function HomePage() {
           </Link>
         </div>
 
-        {/* Feature pills */}
-        <div className="flex flex-wrap justify-center gap-3">
-          {features.map((f) => (
-            <div
-              key={f.label}
-              className="flex items-center gap-2 px-4 py-2 text-sm"
-              style={{
-                background: 'rgba(15,0,32,0.7)',
-                border: '1px solid rgba(200,150,42,0.2)',
-                color: 'var(--text-muted)',
-                clipPath: 'polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%)'
-              }}
-            >
-              <span>{f.icon}</span>
-              <span className="font-semibold tracking-wide">{f.label}</span>
-            </div>
-          ))}
-        </div>
+
       </div>
     </main>
   );

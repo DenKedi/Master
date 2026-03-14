@@ -4,7 +4,7 @@ import DeckModel from '@/models/Deck';
 import CollectionModel from '@/models/Collection';
 import { apiOk, apiError } from '@/lib/utils';
 import { auth } from '@/lib/nextauth';
-import { DECK_SIZE } from '@/lib/battle/constants';
+import { MIN_DECK_SIZE, MAX_DECK_SIZE } from '@/lib/battle/constants';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -54,8 +54,8 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 
   // Update cards
   if (cards !== undefined) {
-    if (!Array.isArray(cards) || cards.length !== DECK_SIZE) {
-      return apiError(`A deck must have exactly ${DECK_SIZE} cards`);
+    if (!Array.isArray(cards) || cards.length < MIN_DECK_SIZE || cards.length > MAX_DECK_SIZE) {
+      return apiError(`A deck must have between ${MIN_DECK_SIZE} and ${MAX_DECK_SIZE} cards`);
     }
 
     // Verify ownership
